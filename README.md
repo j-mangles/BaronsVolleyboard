@@ -4,8 +4,8 @@ Barons volleyball coaching app: court whiteboard, Game Day scoring and stats. Wo
 
 Live at https://j-mangles.github.io/BaronsVolleyboard/
 
-## Staff sync
+## Team sync
 
-Coaches sign in (top right) with an email and password. Roster, matches and saved plays sync through Firebase; the whiteboard in progress, current tab and undo history stay on each device. Who has access is controlled by the email list in `firestore.rules` (paste it into Firebase console → Firestore → Rules). The project config in `sync-config.js` is not secret.
+Tap **Sync** (top right) → **Start team sync** on one device, then send the team link to the other coaches. Everyone with the link shares the roster, matches and saved plays through Firebase; the whiteboard in progress, current tab and undo history stay on each device. There are no accounts: the code in the link is the key, and the database rules (`firestore.rules`, pasted into Firebase console → Firestore → Rules) don't allow listing teams. The project config in `sync-config.js` is not secret.
 
 `node test/sync.test.mjs` runs the sync tests.

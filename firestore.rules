@@ -1,18 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Coaches allowed to see and change team data. Add or remove emails here.
-    function isStaff() {
-      return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in [
-          'STAFF_EMAIL_1'
-        ];
+    // No accounts: the team code in the link is the key. Teams can't be listed,
+    // so data can only be reached by someone who already has the code.
+    function okCode(code) { return code.size() >= 20 && code.size() <= 40; }
+    function okData() {
+      return request.resource.data.keys().hasOnly(['data', 'updatedAt'])
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 900000;
     }
-    match /teams/{team} {
-      allow read, write: if isStaff();
-      match /{document=**} {
-        allow read, write: if isStaff();
+    match /teams/{code} {
+      allow get, delete: if okCode(code);
+      allow create, update: if okCode(code) && okData();
+      match /{kind}/{id} {
+        allow read, delete: if okCode(code) && kind in ['matches', 'plays'];
+        allow create, update: if okCode(code) && kind in ['matches', 'plays'] && okData();
       }
     }
   }
