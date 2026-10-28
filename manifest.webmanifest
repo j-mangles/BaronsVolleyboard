@@ -1,0 +1,17 @@
+{
+  "name": "VolleyBoard — Volleyball Coach",
+  "short_name": "VolleyBoard",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#101b2c",
+  "background_color": "#0b1422",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
