@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Coaches allowed to see and change team data. Add or remove emails here.
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'STAFF_EMAIL_1'
+        ];
+    }
+    match /teams/{team} {
+      allow read, write: if isStaff();
+      match /{document=**} {
+        allow read, write: if isStaff();
+      }
+    }
+  }
+}
