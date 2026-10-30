@@ -48,7 +48,8 @@ css.textContent = `
 #vbSync button{font:inherit;font-size:15px;font-weight:700;border-radius:10px;padding:10px 14px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer}
 #vbSync button.go{background:var(--teal);color:#062a22;border-color:var(--teal)}
 #vbSync hr{border:0;border-top:1px solid var(--line);margin:16px 0}
-#vbSync .msg{min-height:20px;font-size:14px;color:var(--gold);margin:10px 0 0}`;
+#vbSync .msg{min-height:20px;font-size:14px;color:var(--gold);margin:10px 0 0}
+@media(max-width:700px){.top-meta{display:flex!important;gap:8px}.top-meta .save-status{font-size:0;display:inline-flex}.top-meta .save-status::first-letter{font-size:14px}.vb-acct{padding:6px 10px}}`;
 document.head.appendChild(css);
 
 const dlg = document.createElement('dialog'); dlg.id = 'vbSync'; document.body.appendChild(dlg);

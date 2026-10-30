@@ -114,6 +114,28 @@
 
 .v6-pass-link{border-top:1px solid var(--line);margin-top:15px;padding-top:15px}.v6-pass-link h3{margin:0;font-size:.83rem}.v6-passer-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;margin:9px 0}.v6-passer-grid button{min-height:46px;background:#254056;color:#fff;border:1px solid #52768b;border-radius:8px;font-size:.8rem;font-weight:800}.v6-passer-grid button.selected{border:2px solid #7ef4be;background:#1e694e}.v6-pass-ratings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.v6-pass-ratings button{background:#254b5d;color:#fff;border:1px solid #47798e;border-radius:9px;min-height:48px;font-size:1.18rem;font-weight:900}.v6-pass-ratings button:disabled{opacity:.35}
 
+.tn-grid{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(0,1.2fr);gap:18px;align-items:start;margin-bottom:18px}
+.tn-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.tn-game{display:grid;grid-template-columns:86px 1fr auto;gap:12px;align-items:center;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:11px 13px}
+.tn-game.tn-bye{background:transparent;border-style:dashed;padding:7px 13px}
+.tn-vs{font-size:1.02rem}.tn-venue{color:var(--blue);text-decoration:none}.tn-venue:hover{text-decoration:underline}
+.small-btn{min-height:40px;padding:8px 12px;font-size:.84rem}
+.tn-places{margin-bottom:16px;width:100%}.tn-places button{flex:1}
+.tn-step{display:flex;flex-direction:column;gap:8px}
+.tn-card{background:var(--panel-2);border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:12px;padding:11px 13px;display:flex;flex-direction:column;gap:5px}
+.tn-card.tn-final{border-left-color:var(--gold)}
+.tn-meta{font-size:.86rem;color:var(--muted)}.tn-meta b{color:var(--ink)}
+.tn-id{float:right;font-size:.74rem;font-weight:800;color:var(--muted);letter-spacing:.04em}
+.tn-branches{display:flex;flex-direction:column;gap:10px;padding-left:16px;border-left:2px solid var(--line);margin-left:8px}
+.tn-branch{display:flex;flex-direction:column;gap:6px}
+.tn-res{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.tn-res.win{color:var(--teal)}.tn-res.lose{color:var(--red)}
+.tn-pools{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.tn-pool{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 13px}
+.tn-pool.ours{border-color:var(--teal)}.tn-pool>div{display:flex;flex-direction:column;gap:1px}
+.tn-pool ol{margin:7px 0 0;padding-left:22px;line-height:1.5;font-size:.9rem}.tn-pool li.me{color:var(--teal);font-weight:800}
+.tn-pools-panel{margin-bottom:12px}
+@media(max-width:1050px){.tn-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.tn-game{grid-template-columns:70px 1fr}.tn-game .small-btn{grid-column:1/-1}.tn-branches{padding-left:10px;margin-left:4px}}
 </style>
   <title>VolleyBoard • Volleyball Coach</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -131,12 +153,14 @@
     <button class="tab" data-tab="dashboard"><span aria-hidden="true">▤</span> <span>Game Day</span></button>
     <button class="tab" data-tab="lineup"><span aria-hidden="true">⟳</span> <span>Lineup</span></button>
     <button class="tab" data-tab="board"><span aria-hidden="true">✎</span> <span>Whiteboard</span></button>
+    <button class="tab" data-tab="tourney"><span aria-hidden="true">🏆</span> <span>Tourney</span></button>
     <button class="tab" data-tab="history"><span aria-hidden="true">◷</span> <span>History</span></button>
     <button class="tab" data-tab="team"><span aria-hidden="true">♟</span> <span>Team</span></button>
   </nav>
   <main id="main" class="main"></main>
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="./tourney.js"></script>
 <script>
 /* VolleyBoard v3: coach-assistance rule profiles; not a substitute for the official scoresheet. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.VBRules=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
@@ -360,10 +384,29 @@ function render(){
   if(state.tab==='dashboard')renderDashboard();
   if(state.tab==='lineup')renderLineup();
   if(state.tab==='board')renderBoard();
-  if(state.tab==='history')renderHistory();
+  if(state.tab==='history')renderHistory();   if(state.tab==='tourney')renderTourney();
   if(state.tab==='team')renderTeam();
 }
-function matchForm(){return `<div class="empty-state"><span class="empty-icon">🏐</span><h2>Ready for the next match?</h2><p class="muted">Start a match to track points and player stats as you coach. Everything saves on this iPad.</p><div class="panel"><form id="newMatchForm" class="form-stack"><label>Opponent<input name="opponent" placeholder="e.g. Springfield" maxlength="70" required autofocus></label><div class="two-inputs"><label>Match date<input name="date" type="date" value="${dateLocal()}" required></label><label>Match format<select name="bestOf"><option value="3">Best of 3 (25 / 25 / 15)</option><option value="5">Best of 5 (25 / 25 / 25 / 25 / 15)</option></select></label></div><label>Rules for this match<select name="rulesProfile">${Object.entries(Rules.PROFILES).map(([key,cfg])=>`<option value="${key}" ${key==='mhsaa'?'selected':''}>${esc(cfg.label)}</option>`).join('')}</select></label><button class="btn primary wide" type="submit">Start match →</button></form><p class="download-note">Standard rally scoring: sets to 25, deciding set to 15, win by 2. Use Team to edit your roster before starting if needed.</p></div></div>`}
+let prefill={};
+function renderTourney(){const T=window.VBTourney;if(!T){main.innerHTML='<div class="panel"><p class="no-data">Tournament info didn’t load. Reload the page.</p></div>';return}
+const place=[1,2,3,4].includes(state.tourneyPlace)?state.tourneyPlace:1,us=T.us,pool=T.pools[us.pool],me=T.ourTeam();
+const venue=v=>{const x=T.venues[v]||{name:v};return x.map?`<a class="tn-venue" href="${esc(x.map)}" target="_blank" rel="noopener">${esc(x.name)} ↗</a>`:esc(x.name)};
+const fri=T.friday().map(g=>g.ours?`<li class="tn-game"><div class="tn-when"><b>${esc(g.time)}</b></div><div class="tn-body"><div class="tn-vs">vs <b>${esc(pool.teams[g.opp-1])}</b> <span class="muted small">(S${g.opp})</span></div><div class="small muted">${venue(g.venue)}</div></div><button class="btn small-btn" data-action="tourney-score" data-opp="${esc(pool.teams[g.opp-1])}" data-date="${T.fridayDate}">Score it</button></li>`:`<li class="tn-game tn-bye"><div class="tn-when">${esc(g.time)}</div><div class="tn-body small muted">Off · ${esc(pool.teams[g.a-1])} vs ${esc(pool.teams[g.b-1])}</div></li>`).join('');
+const oppText=ref=>{if(/^\d[A-Z]$/.test(ref)){const n=+ref[0],pl=ref[1];return `<b>${T.ord(n)} in Pool ${pl}</b> <span class="muted small">(${T.pools[pl].teams.map(esc).join(', ')})</span>`}const g=T.byId[ref.split(':')[1]];const who=g?[...T.candidates(g.a),...T.candidates(g.b)]:[];return `<b>${ref[0]==='W'?'winner':'loser'} of ${esc(ref.split(':')[1])}</b>${who.length&&who.length<=4?` <span class="muted small">(${who.map(esc).join(' / ')})</span>`:''}`};
+const node=n=>{if(!n)return '';const g=n.game,fin=T.finalLabel(g.id);
+const ends=[];if(!n.win)ends.push(g.id.endsWith('22')?'Win: 🏆 '+esc(T.side(g.id))+' champions':g.id.endsWith('21')?'Win: '+esc(T.side(g.id))+' consolation winners':'Win: done for the day');if(!n.lose)ends.push(g.id.endsWith('22')?'Lose: '+esc(T.side(g.id))+' runner-up':'Lose: done for the day');
+const br=[n.win?`<div class="tn-branch"><span class="tn-res win">If we win →</span>${node(n.win)}</div>`:'',n.lose?`<div class="tn-branch"><span class="tn-res lose">If we lose →</span>${node(n.lose)}</div>`:''].join('');
+return `<div class="tn-step"><div class="tn-card${fin?' tn-final':''}"><div class="tn-meta"><b>${esc(g.time)}</b> · ${venue(g.venue)} <span class="tn-id">${esc(g.id)}</span></div>${fin?`<div class="tag">${esc(fin)}</div>`:''}<div>vs ${oppText(g.oppRef)}</div>${ends.length?`<div class="small muted">${ends.join(' · ')}</div>`:''}</div>${br?`<div class="tn-branches">${br}</div>`:''}</div>`};
+const path=T.path(place);
+const pools=Object.entries(T.pools).map(([k,p])=>`<div class="tn-pool${k===us.pool?' ours':''}"><div><b>Pool ${k}</b> <span class="muted small">${p.session==='AM'?'Fri AM':'Fri PM'} · ${esc((T.venues[p.venue]||{name:p.venue}).name)}</span></div><ol>${p.teams.map(t=>`<li${t===me&&k===us.pool?' class="me"':''}>${esc(t)}</li>`).join('')}</ol></div>`).join('');
+main.innerHTML=`<div class="page-heading"><div><h1 class="page-title">${esc(T.name)}</h1><p class="subheading">${esc(T.city)} · ${T.days.map(esc).join(' – ')} · We’re <b>${esc(me)}</b>, Pool ${esc(us.pool)} #${us.seed}</p></div><span class="pill">Pool ${esc(us.pool)}</span></div>
+<div class="tn-grid"><section class="panel"><h2>Friday · ${esc(T.days[0])}</h2><p class="section-intro">${esc(pool.session==='AM'?'Morning':'Afternoon')} pool at ${venue(pool.venue)}. Round robin, every team plays 3.</p><ul class="tn-list">${fri}</ul></section>
+<section class="panel"><h2>Saturday · ${esc(T.days[1])}</h2><p class="section-intro">Where we play depends on how we finish in Pool ${esc(us.pool)}. Pick a finish:</p>
+<div class="v6-mode tn-places" role="group" aria-label="Pool finish">${[1,2,3,4].map(n=>`<button class="${n===place?'selected':''}" aria-pressed="${n===place}" data-action="tourney-place" data-id="${n}">${T.ord(n)}</button>`).join('')}</div>
+<div class="tn-tree">${path?node(path):'<p class="no-data">No Saturday game found for that finish.</p>'}</div></section></div>
+<section class="panel tn-pools-panel"><h2>All pools</h2><p class="section-intro">Every team in the draw, for scouting who you might see Saturday.</p><div class="tn-pools">${pools}</div></section>
+<p class="download-note">From the Neelin Dig draw and bracket sheets. If the organizers change anything, their sheets win.</p>`}
+function matchForm(){return `<div class="empty-state"><span class="empty-icon">🏐</span><h2>Ready for the next match?</h2><p class="muted">Start a match to track points and player stats as you coach. Everything saves on this iPad.</p><div class="panel"><form id="newMatchForm" class="form-stack"><label>Opponent<input name="opponent" placeholder="e.g. Springfield" maxlength="70" required autofocus value="${esc(prefill.opponent||'')}"></label><div class="two-inputs"><label>Match date<input name="date" type="date" value="${prefill.date||dateLocal()}" required></label><label>Match format<select name="bestOf"><option value="3">Best of 3 (25 / 25 / 15)</option><option value="5">Best of 5 (25 / 25 / 25 / 25 / 15)</option></select></label></div><label>Rules for this match<select name="rulesProfile">${Object.entries(Rules.PROFILES).map(([key,cfg])=>`<option value="${key}" ${key==='mhsaa'?'selected':''}>${esc(cfg.label)}</option>`).join('')}</select></label><button class="btn primary wide" type="submit">Start match →</button></form><p class="download-note">Standard rally scoring: sets to 25, deciding set to 15, win by 2. Use Team to edit your roster before starting if needed.</p></div></div>`}
 function renderMatch(){
  const m=match();if(!m){main.innerHTML=matchForm();return;}
  const live=m.status==='live',set=m.sets.at(-1),wins=matchWins(m),num=m.sets.length;
@@ -575,11 +618,13 @@ const stop=e=>{if(!pointerState||pointerState.id!==e.pointerId)return;const chan
 function exportImage(){const c=$('#court');if(!c)return;try{c.toBlob(blob=>{if(!blob){toast('Could not create image');return}const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='volleyboard-'+(state.board.name||'play').replace(/[^a-z0-9-]/ig,'-')+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)},'image/png');toast('Court image exported')}catch(e){toast('Image export not supported here')}}
 // ---- Event wiring ----
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;state.boardFocus=false;persist();render()});
-main.addEventListener('submit',e=>{e.preventDefault();const id=e.target.id;const f=new FormData(e.target);if(id==='substitutionForm'){substitute(String(f.get('out')||''),String(f.get('in')||''));}if(id==='newMatchForm'){const opponent=String(f.get('opponent')||'').trim();if(!opponent)return;newMatch({opponent,date:String(f.get('date')),bestOf:f.get('bestOf'),rulesProfile:String(f.get('rulesProfile')||'mhsaa')});}if(id==='teamNameForm'){const name=String(f.get('teamName')||'').trim();if(!name)return;state.teamName=name;persist();render();toast('Team name saved');}if(id==='addPlayerForm'){const number=String(f.get('number')||'').trim(),name=String(f.get('name')||'').trim();if(!number||!name)return;state.players.push({id:uid(),number,name});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast(name+' added');}});
+main.addEventListener('submit',e=>{e.preventDefault();const id=e.target.id;const f=new FormData(e.target);if(id==='substitutionForm'){substitute(String(f.get('out')||''),String(f.get('in')||''));}if(id==='newMatchForm'){prefill={};const opponent=String(f.get('opponent')||'').trim();if(!opponent)return;newMatch({opponent,date:String(f.get('date')),bestOf:f.get('bestOf'),rulesProfile:String(f.get('rulesProfile')||'mhsaa')});}if(id==='teamNameForm'){const name=String(f.get('teamName')||'').trim();if(!name)return;state.teamName=name;persist();render();toast('Team name saved');}if(id==='addPlayerForm'){const number=String(f.get('number')||'').trim(),name=String(f.get('name')||'').trim();if(!number||!name)return;state.players.push({id:uid(),number,name});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast(name+' added');}});
 main.addEventListener('change',async e=>{const target=e.target;if(target.matches('[data-default-slot]')){const pos=Number(target.dataset.defaultSlot)-1,id=target.value,other=state.defaultLineup.indexOf(id),old=state.defaultLineup[pos];if(pos>=0&&pos<6){state.defaultLineup[pos]=id||null;if(other!==-1&&other!==pos)state.defaultLineup[other]=old;state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast('Starting six saved');}return;}if(target.matches('[data-libero-select]')){const m=match();if(!m)return;const selects=[...main.querySelectorAll('[data-libero-select]')].map(el=>el.value);configureMatchLiberos(selects);return;}if(target.id==='penSize'){state.penWidth=Number(target.value)||5;persist();return;}if(target.id==='autoRotateToggle'){const m=match();if(m&&m.status==='live'){snapshotMatch(m);m.lineup.autoRotate=target.checked;persist();render();toast(target.checked?'Automatic rotation on':'Manual rotation only');}return;}if(target.matches('[data-player-field]')){const player=state.players.find(p=>p.id===target.dataset.id);if(!player)return;let value=target.value.trim();if(!value){target.value=player[target.dataset.playerField];return}player[target.dataset.playerField]=value;persist();toast('Roster updated');}if(target.id==='markerLabel'){const m=state.board.markers.find(x=>x.id===state.selectedMarkerId);if(m){boardSnapshot();m.label=target.value.trim().slice(0,5)||m.label;boardSave();courtDraw();}}if(target.id==='importFile'&&target.files?.[0]){let f=target.files[0];try{const data=JSON.parse(await f.text());if(!Array.isArray(data.players)||!Array.isArray(data.matches)||!data.board||!Array.isArray(data.plays))throw Error('Not a VolleyBoard backup');if(!confirm(window.VBSync&&window.VBSync.ready?'Restore backup? Team sync is on, so this REPLACES the matches, plays and roster for EVERY coach, not just this device.':'Restore backup? This REPLACES all current matches, plays and team data on this device.')){target.value='';return}state=Object.assign(freshState(),data,{version:6,tab:'team',boardFocus:false,matchUndo:[],boardUndo:[]});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);state.matches.forEach(m=>{ensureLineup(m);Rules.ensure(m);if(!m.gameDay)m.gameDay={passers:[]};if(!Array.isArray(m.gameDay.passers))m.gameDay.passers=[];if(!Number.isInteger(m.gameDay.pendingServeZone))m.gameDay.pendingServeZone=null;});persist();render();toast('Backup restored successfully')}catch(err){toast('Could not import: '+err.message)}}});
 main.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
 if(b.dataset.tabGo){state.tab=b.dataset.tabGo;persist();render();return}
 const action=b.dataset.action;const id=b.dataset.id;
+if(action==='tourney-place'){state.tourneyPlace=+id;saveLocal();render();return}
+if(action==='tourney-score'){const cur=match();if(cur&&cur.status==='live'){toast('Finish or close the current match first (Match tab).');return}state.currentMatchId=null;state.matchUndo=[];prefill={opponent:b.dataset.opp,date:b.dataset.date};state.tab='match';persist();render();window.scrollTo(0,0);toast('Opponent filled in — check the format, then Start match');return}
 if(action==='scorer-mode'){state.scorerMode=b.dataset.value==='statkeeper'?'statkeeper':'coach';resetScorer();render();return;}
 if(action==='scorer-side'){scorerSide(b.dataset.side);return;}
 if(action==='scorer-cause'){scorerCause(b.dataset.type);return;}

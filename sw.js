@@ -1,5 +1,5 @@
-const CACHE='volleyboard-v7-20261029';
-const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg','./sync.js','./sync-core.js','./sync-config.js'];
+const CACHE='volleyboard-v8-20261030';
+const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg','./sync.js','./sync-core.js','./sync-config.js','./tourney.js'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('volleyboard-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||!(new URL(e.request.url).origin===self.location.origin||new URL(e.request.url).hostname==='www.gstatic.com'))return;e.respondWith(fetch(e.request).then(response=>{if(response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(e.request,copy)).catch(()=>{});}return response;}).catch(()=>caches.match(e.request)));});
