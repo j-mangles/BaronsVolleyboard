@@ -94,5 +94,68 @@
     };
     return first ? walk(Object.assign({}, first, { oppRef: first.a === start ? first.b : first.a }), 0) : null;
   };
+  /* ---------- Live results ----------
+     results: { "S:1-4": {sets:[[25,20],[22,25]]} }  (points for seed a, then seed b, each set)
+     Pool play is 2 sets. Ranking: sets won, then head-to-head when exactly two teams are tied,
+     then points ratio (points for ÷ points against). Confirm tiebreaks at the tournament desk. */
+  T.gameKey = (P, a, b) => P + ':' + a + '-' + b;
+  T.poolGames = P => {
+    const pool = pools[P], times = pool.session === 'AM' ? AM : PM;
+    return RR.map(([a, b], i) => ({ key: T.gameKey(P, a, b), pool: P, a, b, time: times[i], venue: pool.venue }));
+  };
+  const goodSet = s => Array.isArray(s) && s.length === 2 && s.every(n => Number.isFinite(n) && n >= 0) && s[0] !== s[1];
+  T.setsOf = r => (r && Array.isArray(r.sets) ? r.sets.filter(goodSet) : []);
+  T.standings = function (P, results) {
+    const teams = pools[P].teams, row = teams.map((name, i) => ({ seed: i + 1, name, sw: 0, sl: 0, pf: 0, pa: 0, played: 0 }));
+    const h2h = {};
+    let complete = true;
+    T.poolGames(P).forEach(g => {
+      const sets = T.setsOf(results[g.key]);
+      if (sets.length < 2) complete = false;
+      if (!sets.length) return;
+      const A = row[g.a - 1], B = row[g.b - 1];
+      A.played++; B.played++;
+      sets.forEach(([x, y]) => { A.pf += x; A.pa += y; B.pf += y; B.pa += x; if (x > y) { A.sw++; B.sl++; } else { B.sw++; A.sl++; } });
+      h2h[g.a + '>' + g.b] = sets.filter(s => s[0] > s[1]).length; h2h[g.b + '>' + g.a] = sets.filter(s => s[1] > s[0]).length;
+    });
+    const ratio = r => (r.pa ? r.pf / r.pa : r.pf ? 99 : 0);
+    // Sort by sets won. Within a tie: two teams → head-to-head if it separates them, else points ratio.
+    const groups = {};
+    row.forEach(r => (groups[r.sw] = groups[r.sw] || []).push(r));
+    const ordered = [];
+    Object.keys(groups).map(Number).sort((a, b) => b - a).forEach(k => {
+      const g = groups[k].sort((p, q) => ratio(q) - ratio(p) || p.seed - q.seed);
+      if (g.length === 2) {
+        const [a, b] = g, ab = h2h[a.seed + '>' + b.seed], ba = h2h[b.seed + '>' + a.seed];
+        if (ab != null && ab !== ba) { if (ba > ab) g.reverse(); g.tiebreak = 'head-to-head'; } else g.tiebreak = 'points ratio';
+      } else if (g.length > 2) g.tiebreak = 'points ratio';
+      g.forEach(r => { r.tiebreak = g.tiebreak || null; ordered.push(r); });
+    });
+    row.length = 0; ordered.forEach(r => row.push(r));
+    row.forEach(r => { r.ratio = ratio(r); });
+    const games = T.poolGames(P).filter(g => T.setsOf(results[g.key]).length >= 2).length;
+    return { rows: row, complete, games };
+  };
+  T.placeOf = (P, seed, results) => T.standings(P, results).rows.findIndex(r => r.seed === seed) + 1;
+  // Walk our Saturday path using recorded results: sat = { BA6: 'W', BA14: 'L' }.
+  T.saturdayRun = function (place, sat) {
+    const played = [];
+    let n = T.path(place);
+    while (n) {
+      const r = sat && sat[n.game.id];
+      if (!r) return { played, next: n };
+      played.push({ game: n.game, result: r });
+      n = r === 'W' ? n.win : n.lose;
+    }
+    return { played, next: null };
+  };
+  // Match a scored VolleyBoard match to a pool game: same opponent name, on Friday.
+  T.fromMatch = function (m, oppName) {
+    if (!m || m.date !== T.fridayDate) return null;
+    const norm = s => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (!norm(m.opponent) || !(norm(m.opponent).includes(norm(oppName)) || norm(oppName).includes(norm(m.opponent)))) return null;
+    const sets = (m.sets || []).filter(s => s.winner).map(s => [s.home, s.away]);
+    return sets.length ? sets : null;
+  };
   window.VBTourney = T;
 })();

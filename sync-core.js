@@ -1,5 +1,5 @@
 /* VolleyBoard sync engine.
-   Shared team data: team name, roster, default lineup, matches, saved plays.
+   Shared team data: team name, roster, default lineup, tournament results, matches, saved plays.
    Stays on each device: current tab, whiteboard in progress, selections, undo.
    The backend is swappable (Firebase in sync.js, a fake one in the tests). */
 
@@ -7,7 +7,7 @@ export const KINDS = ['matches', 'plays'];
 const KNOWN_KEY = 'volleyboard_sync_known';
 
 export function teamPayload(s) {
-  return JSON.stringify({ teamName: s.teamName, players: s.players, defaultLineup: s.defaultLineup });
+  return JSON.stringify({ teamName: s.teamName, players: s.players, defaultLineup: s.defaultLineup, tourney: s.tourney || null });
 }
 
 export function createSync({ backend, bridge, storage, onStatus = () => {}, debounceMs = 700 }) {
@@ -35,6 +35,7 @@ export function createSync({ backend, bridge, storage, onStatus = () => {}, debo
   function applyTeam(json) {
     const t = JSON.parse(json), s = bridge.state;
     s.teamName = t.teamName; s.players = t.players || []; s.defaultLineup = t.defaultLineup || [];
+    if (t.tourney) s.tourney = t.tourney;
   }
 
   // First snapshot of each stream: merge cloud with whatever this device already has.
