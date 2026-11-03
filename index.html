@@ -11,7 +11,7 @@
   
   
   
-  <script>try{var q=location.search;if(/[?&]preview\b/.test(q))localStorage.setItem('vb-look','pro');if(/[?&]classic\b/.test(q))localStorage.removeItem('vb-look');if(localStorage.getItem('vb-look')==='pro')document.documentElement.classList.add('pro')}catch(e){}</script>
+  <script>try{var q=location.search;if(/[?&]preview\b/.test(q))localStorage.setItem('vb-look','pro');if(/[?&]classic\b/.test(q))localStorage.removeItem('vb-look');if(localStorage.getItem('vb-look')==='pro'){document.documentElement.classList.add('pro');var tc=document.querySelector('meta[name=theme-color]');if(tc)tc.content='#0b0c0e'}}catch(e){}</script>
   <link rel="stylesheet" href="./pro.css">
   <style>
 /* THEME: every colour in the app comes from these tokens. A theme changes only this block.
@@ -183,7 +183,7 @@
   <title>VolleyBoard • Volleyball Coach</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="./icon.svg">
+<link rel="apple-touch-icon" href="./icon-180.png">
 </head>
 <body>
 <div id="app">
@@ -683,26 +683,29 @@ function exportCsv(m){if(!m)return;const rows=[['Match','Date','Team','Opponent'
 let canvas=null,ctx=null,pointerState=null;
 function boardSnapshot(){state.boardUndo.push(clone(state.board));if(state.boardUndo.length>40)state.boardUndo.shift()}
 function boardSave(){persist()}
+const PRO=document.documentElement.classList.contains('pro');
+const CV=PRO?{bg:'#0f2747',court:'#1c4a86',grain:'rgba(255,255,255,.06)',lines:'#ffffff',lines2:'rgba(255,255,255,.85)',net:'#ffffff',text:'#ffffff',text2:'rgba(255,255,255,.7)',home:'#c6ef4a',homeInk:'#12160a',away:'#ff8f8f',ball:'#ffc83d',font:"'Barlow Condensed',system-ui,sans-serif",brand:'#1c4a86'}
+ :{bg:'#0a3543',court:'#175c62',grain:'rgba(234,255,244,.17)',lines:'#dcf6e7',lines2:'#d1f7ea',net:'#fff5cb',text:'#e1f6ed',text2:'#b3d8d3',home:'#47d9bb',homeInk:'#052a32',away:'#80bbff',ball:'#f5ca67',font:'system-ui',brand:'#12482f'};
 function courtDraw(){if(!ctx)return;
  const b=state.board,blank=b.layout==='blank',half=b.layout==='half';
  ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,1000,640);
  if(blank){
    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,1000,640);
    // A subtle school-inspired mark provides Barons branding without using up writing space.
-   ctx.save();ctx.globalAlpha=.085;ctx.textAlign='right';ctx.font='900 122px system-ui,sans-serif';ctx.fillStyle='#12482f';ctx.fillText('B',947,140);ctx.font='900 21px system-ui,sans-serif';ctx.fillText('BARONS VOLLEYBALL',948,174);ctx.restore();
+   ctx.save();ctx.globalAlpha=.085;ctx.textAlign='right';ctx.font='900 122px '+CV.font;ctx.fillStyle=CV.brand;ctx.fillText('B',947,140);ctx.font='900 21px '+CV.font;ctx.fillText('BARONS VOLLEYBALL',948,174);ctx.restore();
  }else{
    const top=half?80:49,bottom=half?580:591,left=87,right=913,net=half?80:320;
-   ctx.fillStyle='#0a3543';ctx.fillRect(0,0,1000,640);ctx.fillStyle='#175c62';ctx.fillRect(left,top,right-left,bottom-top);
-   ctx.strokeStyle='rgba(234,255,244,.17)';ctx.lineWidth=2;for(let k=0;k<14;k++){let x=left+(right-left)*k/13;ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke()}
+   ctx.fillStyle=CV.bg;ctx.fillRect(0,0,1000,640);ctx.fillStyle=CV.court;ctx.fillRect(left,top,right-left,bottom-top);
+   ctx.strokeStyle=CV.grain;ctx.lineWidth=2;for(let k=0;k<14;k++){let x=left+(right-left)*k/13;ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke()}
    ctx.fillStyle='rgba(0,0,0,.12)';if(!half)ctx.fillRect(left,top,right-left,net-top);
-   ctx.strokeStyle='#dcf6e7';ctx.lineWidth=5;ctx.strokeRect(left,top,right-left,bottom-top);
-   ctx.strokeStyle='#d1f7ea';ctx.lineWidth=3;function line(y){ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke()}if(half){line(240)}else{line(231);line(409)}
-   ctx.strokeStyle='#fff5cb';ctx.lineWidth=half?7:8;line(net);
+   ctx.strokeStyle=CV.lines;ctx.lineWidth=5;ctx.strokeRect(left,top,right-left,bottom-top);
+   ctx.strokeStyle=CV.lines2;ctx.lineWidth=3;function line(y){ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke()}if(half){line(240)}else{line(231);line(409)}
+   ctx.strokeStyle=CV.net;ctx.lineWidth=half?7:8;line(net);
    ctx.strokeStyle='rgba(255,255,255,.68)';ctx.lineWidth=2;for(let x=left;x<right;x+=19){ctx.beginPath();ctx.moveTo(x,net-7);ctx.lineTo(x,net+7);ctx.stroke()}
-   ctx.fillStyle='#e1f6ed';ctx.font='700 18px system-ui';ctx.textAlign='center';ctx.fillText(half?'BARONS · NET':'OPPONENTS',500,half?45:30);if(!half)ctx.fillText('BARONS',500,625);ctx.font='600 15px system-ui';ctx.fillStyle='#b3d8d3';ctx.fillText(half?'BASELINE':'',500,614);
+   ctx.fillStyle=CV.text;ctx.font=(PRO?'700 22px ':'700 18px ')+CV.font;ctx.textAlign='center';ctx.fillText(half?'BARONS · NET':'OPPONENTS',500,half?45:30);if(!half)ctx.fillText('BARONS',500,625);ctx.font=(PRO?'700 17px ':'600 15px ')+CV.font;ctx.fillStyle=CV.text2;ctx.fillText(half?'BASELINE':'',500,614);
  }
  for(const stroke of b.strokes){if(!stroke.points.length)continue;ctx.strokeStyle=stroke.color;ctx.lineWidth=stroke.width||5;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();stroke.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));if(stroke.points.length===1){ctx.lineTo(stroke.points[0].x+.1,stroke.points[0].y+.1)}ctx.stroke();if(stroke.arrow&&stroke.points.length>1){const a=stroke.points[0],z=stroke.points.at(-1),angle=Math.atan2(z.y-a.y,z.x-a.x),len=18;ctx.beginPath();ctx.moveTo(z.x,z.y);ctx.lineTo(z.x-len*Math.cos(angle-.48),z.y-len*Math.sin(angle-.48));ctx.moveTo(z.x,z.y);ctx.lineTo(z.x-len*Math.cos(angle+.48),z.y-len*Math.sin(angle+.48));ctx.stroke();}}
- if(!blank)for(const marker of b.markers){if(half&&marker.side==='away')continue;const isHome=marker.side==='home',isBall=marker.side==='ball';ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=12;ctx.shadowOffsetY=3;ctx.beginPath();ctx.arc(marker.x,marker.y,isBall?21:25,0,2*Math.PI);ctx.fillStyle=isBall?'#f5ca67':isHome?'#47d9bb':'#80bbff';ctx.fill();ctx.restore();if(marker.id===state.selectedMarkerId&&state.boardTool==='move'){ctx.strokeStyle='#ffffff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(marker.x,marker.y,isBall?26:31,0,2*Math.PI);ctx.stroke()}ctx.font=(isBall?'bold 19px':'bold 20px')+' system-ui';ctx.fillStyle='#052a32';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(markerText(marker),marker.x,marker.y+1);}
+ if(!blank)for(const marker of b.markers){if(half&&marker.side==='away')continue;const isHome=marker.side==='home',isBall=marker.side==='ball';ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=12;ctx.shadowOffsetY=3;ctx.beginPath();ctx.arc(marker.x,marker.y,isBall?21:25,0,2*Math.PI);ctx.fillStyle=isBall?CV.ball:isHome?CV.home:CV.away;ctx.fill();ctx.restore();if(marker.id===state.selectedMarkerId&&state.boardTool==='move'){ctx.strokeStyle='#ffffff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(marker.x,marker.y,isBall?26:31,0,2*Math.PI);ctx.stroke()}ctx.font=PRO?(isBall?'800 21px ':'800 24px ')+CV.font:(isBall?'bold 19px':'bold 20px')+' system-ui';ctx.fillStyle=!PRO||isHome||isBall?CV.homeInk:'#2a0b0b';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(markerText(marker),marker.x,marker.y+1);}
 }
 function coords(e){const box=canvas.getBoundingClientRect();return {x:Math.max(0,Math.min(1000,(e.clientX-box.left)/box.width*1000)),y:Math.max(0,Math.min(640,(e.clientY-box.top)/box.height*640))}}
 function nearMarker(p){const arr=[...state.board.markers].reverse();return arr.find(m=>(state.board.layout==='full'||m.side!=='away')&&Math.hypot(m.x-p.x,m.y-p.y)<36)}
@@ -714,7 +717,7 @@ function wbPlayersHTML(){const b=state.board;const sel=b.markers.find(x=>x.id===
  return `<div class="wb-pl-head"><b>Our players</b><span class="muted small">${state.boardTool!=='move'?'Choose Move players, tap one of our dots, then pick who it is.':sel?`Dot ${esc(markerText(sel))} selected: pick who it is.`:'Tap one of our dots, then pick who it is.'}</span><div class="btn-row"><button class="btn sm ${mode==='initials'?'primary':'ghost'}" data-action="wb-label-mode" data-value="initials">Initials</button><button class="btn sm ${mode==='number'?'primary':'ghost'}" data-action="wb-label-mode" data-value="number">Numbers</button><button class="btn sm ghost" data-action="wb-fill-lineup">Fill from lineup</button></div></div>
  <div class="wb-pl-list">${roster.map(p=>{const on=b.markers.some(x=>x.side==='home'&&x.playerId===p.id);return `<button class="wb-pl${sel&&sel.playerId===p.id?' active':''}${on?' on':''}" data-action="wb-assign" data-id="${esc(p.id)}" ${sel?'':'disabled'}><b>#${esc(p.number)}</b><span>${esc(p.name||'')}</span></button>`}).join('')}</div>`}
 function syncMarkerInput(){const wp=$('#wbPlayers');if(wp)wp.innerHTML=wbPlayersHTML();const el=$('#markerLabel');if(!el)return;const marker=state.board.markers.find(m=>m.id===state.selectedMarkerId);el.value=marker?.label||'';el.disabled=!marker;}
-function initCanvas(){canvas=$('#court');if(!canvas)return;ctx=canvas.getContext('2d');courtDraw();canvas.style.cursor=state.boardTool==='move'?'grab':state.boardTool==='erase'?'cell':'crosshair';
+function initCanvas(){canvas=$('#court');if(!canvas)return;ctx=canvas.getContext('2d');courtDraw();if(PRO&&document.fonts)document.fonts.ready.then(()=>{if(ctx)courtDraw()});canvas.style.cursor=state.boardTool==='move'?'grab':state.boardTool==='erase'?'cell':'crosshair';
 canvas.onpointerdown=e=>{if(e.button!==0&&e.pointerType==='mouse')return;e.preventDefault();const p=coords(e),tool=state.boardTool;pointerState={id:e.pointerId,tool,moved:false,originalBoard:clone(state.board),erased:false};try{canvas.setPointerCapture(e.pointerId)}catch(_e){}
 if(tool==='move'){let m=nearMarker(p);if(m){pointerState.markerId=m.id;state.selectedMarkerId=m.id;syncMarkerInput();}}else if(tool==='pen'||tool==='arrow'){const stroke={color:state.penColor,width:state.penWidth,arrow:tool==='arrow',points:[p]};state.board.strokes.push(stroke);pointerState.stroke=stroke;}else if(tool==='erase'){pointerState.erased=eraseAt(p)}courtDraw()};
 canvas.onpointermove=e=>{if(!pointerState||pointerState.id!==e.pointerId)return;e.preventDefault();const p=coords(e);if(pointerState.tool==='move'&&pointerState.markerId){const m=state.board.markers.find(m=>m.id===pointerState.markerId);if(m){m.x=Math.max(35,Math.min(965,p.x));m.y=Math.max(32,Math.min(608,p.y));pointerState.moved=true;}}else if(pointerState.tool==='pen'||pointerState.tool==='arrow'){if(pointerState.tool==='arrow')pointerState.stroke.points=[pointerState.stroke.points[0],p];else pointerState.stroke.points.push(p);pointerState.moved=true;}else if(pointerState.tool==='erase'){pointerState.erased=eraseAt(p)||pointerState.erased;}courtDraw()};

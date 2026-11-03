@@ -18,24 +18,37 @@
     ball:'<circle cx="12" cy="12" r="9"/><path d="M12 3a14 14 0 0 0 4 9M3.5 9a14 14 0 0 1 10 1M8 20.5a14 14 0 0 1 2-9.5M21 13.5a14 14 0 0 1-10 .5"/>',
     timer:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M9.5 2.5h5"/>',
     swap:'<path d="M4 8h14l-4-4M20 16H6l4 4"/>',
-    serve:'<path d="M7 17L17 7M9 7h8v8"/>'
+    serve:'<path d="M7 17L17 7M9 7h8v8"/>',
+    move:'<path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
+    erase:'<path d="M20 20H8.5L3.6 15.1a2 2 0 0 1 0-2.8l9.2-9.2a2 2 0 0 1 2.8 0l4.3 4.3a2 2 0 0 1 0 2.8L12 18.2"/><path d="M8 10.5l6 6"/>',
+    expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+    shrink:'<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
+    download:'<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
+    blank:'<rect x="4" y="4" width="16" height="16" rx="2"/>',
+    half:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16"/>',
+    full:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16"/>',
+    star:'<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+    dot:'<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>',
+    ring:'<circle cx="12" cy="12" r="5"/>'
   };
   const svg=(k,c)=>`<svg class="pv-icon${c?' '+c:''}" viewBox="0 0 24 24" aria-hidden="true">${P[k]}</svg>`;
-  const GLYPH={'▦':'match','▤':'dashboard','⟳':'lineup','✎':'board','🏆':'tourney','◷':'history','♟':'team','↶':'undo','⟲':'redo','✓':'check','🏐':'ball','↗':'serve','+':'plus','⏱':'timer','⇄':'swap'};
+  const GLYPH={'✥':'move','⌫':'erase','⛶':'expand','↙':'shrink','↓':'download','▢':'blank','◧':'half','★':'star','●':'dot','○':'ring','▦':'match','▤':'dashboard','⟳':'lineup','✎':'board','🏆':'tourney','◷':'history','♟':'team','↶':'undo','⟲':'redo','✓':'check','🏐':'ball','↗':'serve','+':'plus','⏱':'timer','⇄':'swap'};
 
   // tabs: static markup, done once
   document.querySelectorAll('.tab').forEach(t=>{const g=t.querySelector('span[aria-hidden]');if(g)g.outerHTML=svg(t.dataset.tab)});
 
   // swap a leading glyph in buttons, small labels and empty-state icons for a drawn icon
-  const RX=/^\s*(▦|▤|⟳|✎|🏆|◷|♟|↶|⟲|✓|🏐|↗|⏱|⇄|\+(?=\s))|🏐\s*$/;
+  const KEYS=Object.keys(GLYPH).filter(k=>k!=='+').map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+  const RX=new RegExp('^\\s*('+KEYS+'|\\+(?=\\s))|🏐\\s*$');
+  const LEAD=new RegExp('^\\s*('+KEYS+'|\\+)\\s*');
   function icons(scope){
     scope.querySelectorAll('.empty-icon').forEach(e=>{const k=GLYPH[e.textContent.trim()];if(k)e.innerHTML=svg(k)});
-    const w=document.createTreeWalker(scope,NodeFilter.SHOW_TEXT,{acceptNode:n=>{if(!RX.test(n.nodeValue))return 3;const p=n.parentElement;return p&&p.closest('button,small,a')?1:3}});
+    const w=document.createTreeWalker(scope,NodeFilter.SHOW_TEXT,{acceptNode:n=>{if(!RX.test(n.nodeValue))return 3;const p=n.parentElement;return p&&p.closest('button,small,a,.save-status,.pill,.rotation-zone,.wb-tip')?1:3}});
     const hits=[];while(w.nextNode())hits.push(w.currentNode);
     hits.forEach(n=>{
-      const v=n.nodeValue,m=v.match(/^\s*(▦|▤|⟳|✎|🏆|◷|♟|↶|⟲|✓|🏐|↗|⏱|⇄|\+)\s*/);
+      const v=n.nodeValue,m=v.match(LEAD);
       const span=document.createElement('span');span.style.display='contents';
-      if(m){span.innerHTML=svg(GLYPH[m[1]])+' ';span.append(v.slice(m[0].length));}
+      if(m){const k=m[1]==='▦'&&n.parentElement.closest('[data-action="court-mode"]')?'full':GLYPH[m[1]];span.innerHTML=svg(k,k==='dot'||k==='ring'?'pv-dot':'')+' ';span.append(v.slice(m[0].length));}
       else{const t=v.replace(/\s*🏐\s*$/,'');span.append(t+' ');span.insertAdjacentHTML('beforeend',svg('ball','pv-ball'));}
       n.replaceWith(span);
     });
@@ -58,7 +71,9 @@
   const main=document.getElementById('main');
   const run=()=>{icons(main);bug();};
   new MutationObserver(run).observe(main,{childList:true});
-  run();
+  run();icons(document.querySelector('.topbar'));
+  // keep the save-status dot drawn when sync rewrites its text
+  const st=document.getElementById('saveStatus');if(st)new MutationObserver(()=>{if(/^\s*[●○]/.test(st.textContent))icons(st.parentElement)}).observe(st,{childList:true,characterData:true,subtree:true});
   // toasts and anything outside main
   new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>n.nodeType===1&&n!==main&&icons(n)))).observe(document.body,{childList:true});
 })();
