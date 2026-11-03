@@ -425,7 +425,7 @@ const $=sel=>document.querySelector(sel);
 const main=$('#main');
 let toastTimeout;
 function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el.classList.remove('show'),2800)}
-function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(state));return true}catch(e){toast('Device storage is full or unavailable. Please export a backup.');return false}} function persist(){if(!saveLocal())return;if(window.VBSync&&window.VBSync.ready)window.VBSync.changed();else{const label=$('#saveStatus');if(label&&!label.dataset.sync)label.textContent='● Saved on device';}}
+function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(Object.assign({},state,{matchUndo:(state.matchUndo||[]).slice(-3)})));return true}catch(e){toast('Device storage is full or unavailable. Please export a backup.');return false}} function persist(){if(!saveLocal())return;if(window.VBSync&&window.VBSync.ready)window.VBSync.changed();else{const label=$('#saveStatus');if(label&&!label.dataset.sync)label.textContent='● Saved on device';}}
 function match(){return state.matches.find(m=>m.id===state.currentMatchId)||null}
 function selectedPlayer(m=match()){return m?.roster.find(p=>p.id===state.selectedPlayerId)||m?.roster[0]||null}
 function matchWins(m){return m.sets.reduce((r,s)=>{if(s.winner==='home')r.home++;if(s.winner==='away')r.away++;return r},{home:0,away:0})}
