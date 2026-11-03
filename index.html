@@ -11,6 +11,8 @@
   
   
   
+  <script>try{var q=location.search;if(/[?&]preview\b/.test(q))localStorage.setItem('vb-look','pro');if(/[?&]classic\b/.test(q))localStorage.removeItem('vb-look');if(localStorage.getItem('vb-look')==='pro')document.documentElement.classList.add('pro')}catch(e){}</script>
+  <link rel="stylesheet" href="./pro.css">
   <style>
 /* THEME: every colour in the app comes from these tokens. A theme changes only this block.
    Surfaces: --bg page, --panel cards, --panel-2 raised, --line borders. Text: --ink, --muted.
@@ -778,6 +780,7 @@ persist();render();
 })();
 
 </script>
+<script src="./pro.js"></script>
 <script type="module" src="./sync.js"></script>
 </body>
 </html>

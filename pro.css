@@ -1,0 +1,186 @@
+/* VolleyBoard "Pro" look (preview). Active only when <html class="pro">.
+   World: sports broadcast graphics. It lends type (Barlow / Barlow Condensed),
+   palette (gym-dark ground, lime accent, strong green/red for points),
+   density, and one signature move: the score bug. Layout and controls stay the app's own. */
+
+@font-face{font-family:Barlow;font-weight:400;font-display:swap;src:url(fonts/barlow-regular.woff) format('woff')}
+@font-face{font-family:Barlow;font-weight:500 600;font-display:swap;src:url(fonts/barlow-semibold.woff) format('woff')}
+@font-face{font-family:Barlow;font-weight:700 1000;font-display:swap;src:url(fonts/barlow-bold.woff) format('woff')}
+@font-face{font-family:'Barlow Condensed';font-weight:600 700;font-display:swap;src:url(fonts/barlowcondensed-bold.woff) format('woff')}
+@font-face{font-family:'Barlow Condensed';font-weight:800 1000;font-display:swap;src:url(fonts/barlowcondensed-extrabold.woff) format('woff')}
+
+html.pro{
+  --bg:#0b0c0e;--panel:#15171b;--panel-2:#1d2025;--line:#2c3037;--ink:#f4f5f6;--muted:#a3a9b2;
+  --teal:#c6ef4a;--blue:#74a9ff;--gold:#ffc83d;--good:#1f9d55;--bad:#d63b3b;--mint:#8fe7a9;--red:#ff8f8f;
+  --court:#1c4a86;--shade:#000;--glow:#fff;--on-accent:#fff;
+  --on-lime:#12160a;--r:10px;--shadow:none;
+  --display:'Barlow Condensed','Arial Narrow',sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  accent-color:var(--teal);caret-color:var(--teal);
+}
+html.pro,html.pro body{font-family:Barlow,ui-sans-serif,system-ui,sans-serif;font-size:16.5px;-webkit-font-smoothing:antialiased}
+html.pro ::selection{background:var(--teal);color:var(--on-lime)}
+html.pro *{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+html.pro ::-webkit-scrollbar{width:9px;height:9px}html.pro ::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px}
+html.pro :focus-visible{outline:2px solid var(--teal)!important;outline-offset:2px}
+html.pro table,html.pro strong,html.pro b{font-variant-numeric:tabular-nums}
+html.pro h1,html.pro h2,html.pro h3,html.pro .page-title{font-family:var(--display);font-weight:700;letter-spacing:.005em;text-wrap:balance}
+html.pro .page-title,html.pro .v6-pagehead h1{font-size:clamp(1.7rem,3.4vw,2.3rem);line-height:1.02}
+html.pro .panel h2,html.pro .v6-stage-panel h2{font-size:1.3rem}
+html.pro .pv-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* shell */
+html.pro .topbar{background:var(--bg);border-bottom:1px solid var(--line);padding-top:12px;padding-bottom:11px}
+html.pro .brand-icon{background:var(--teal);color:var(--on-lime);border-radius:8px;width:40px;height:40px;font-family:var(--display);font-weight:800;font-size:1.6rem}
+html.pro .brand strong{font-family:var(--display);font-weight:800;font-size:1.45rem;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+html.pro .brand small{font-size:.74rem;margin-top:2px}
+html.pro .edition{display:none}
+html.pro .tabs{background:var(--bg);padding-top:0;padding-bottom:0;gap:2px}
+html.pro .tab{border-radius:0;padding:12px 16px;font-weight:600;font-size:.92rem;position:relative;color:var(--muted);transition:color .15s}
+html.pro .tab .pv-icon{width:20px;height:20px}
+html.pro .tab:not(.active):hover{background:transparent;color:var(--ink)}
+html.pro .tab.active{background:transparent;color:var(--ink)}
+html.pro .tab.active .pv-icon{color:var(--teal)}
+html.pro .tab::after{content:'';position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--teal);transform:scaleX(0);transition:transform .2s var(--ease)}
+html.pro .tab.active::after{transform:scaleX(1)}
+
+/* components */
+html.pro .panel,html.pro .v6-stage-panel,html.pro .v7-courtwrap,html.pro .v7-sr{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:none}
+html.pro .btn{border-radius:8px;font-weight:600;background:var(--panel-2);border-color:var(--line);transition:background .12s,border-color .12s,transform .1s}
+html.pro .btn:hover{filter:none;background:color-mix(in srgb,var(--panel-2) 80%,var(--ink));}
+html.pro .btn.ghost{background:transparent}
+html.pro .btn.ghost:hover{background:var(--panel-2)}
+html.pro .btn.primary{background:var(--teal);border-color:var(--teal);color:var(--on-lime);font-weight:700}
+html.pro .btn.primary:hover{background:color-mix(in srgb,var(--teal) 88%,var(--glow))}
+html.pro .btn.blue{background:color-mix(in srgb,var(--blue) 22%,var(--panel));border-color:color-mix(in srgb,var(--blue) 55%,var(--line));color:var(--ink)}
+html.pro .btn.red{background:color-mix(in srgb,var(--bad) 22%,var(--panel));border-color:color-mix(in srgb,var(--bad) 60%,var(--line));color:var(--ink)}
+html.pro .btn:active,html.pro button:active{transform:scale(.97)}
+html.pro input,html.pro select{background:var(--bg);border-radius:8px;border-color:var(--line)}
+html.pro input:focus,html.pro select:focus{border-color:var(--teal);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--teal) 25%,transparent)}
+html.pro .pill{border-radius:6px;background:var(--panel-2);border-color:var(--line);color:var(--muted);font-weight:600}
+html.pro .pill.live{background:color-mix(in srgb,var(--good) 20%,var(--panel));border-color:var(--good);color:var(--mint)}
+html.pro .stats-table th{font-family:var(--display);font-size:.82rem;letter-spacing:.06em;font-weight:700}
+html.pro .stats-table td{font-size:.9rem}
+html.pro .toast{background:var(--ink);color:var(--bg);border-radius:8px;font-weight:600;box-shadow:0 10px 30px #0008}
+html.pro .empty-icon{background:var(--panel-2);border-color:var(--line);color:var(--teal);border-radius:14px}
+html.pro .empty-icon .pv-icon{width:44px;height:44px;stroke-width:1.6}
+html.pro .player.selected,html.pro .v7-srplayers button.active,html.pro .gd-passer.selected,html.pro .v6-passer-grid button.selected{border-color:var(--teal);background:color-mix(in srgb,var(--teal) 14%,var(--panel))}
+html.pro .player.selected .jersey,html.pro .stat-target .jersey{background:var(--teal);color:var(--on-lime)}
+html.pro .tool.active{background:var(--teal);border-color:var(--teal);color:var(--on-lime)}
+
+/* match header + mode switch */
+html.pro .v6-pagehead h1 span{font-family:Barlow;font-weight:400;font-size:.6em}
+html.pro .v6-mode{background:var(--panel);border-color:var(--line);border-radius:9px}
+html.pro .v6-mode button{border-radius:6px;font-weight:600;font-size:.88rem;color:var(--muted)}
+html.pro .v6-mode button.selected{background:var(--ink);color:var(--bg);box-shadow:none}
+
+/* SIGNATURE: the score bug */
+html.pro .v6-score-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0;overflow:hidden}
+html.pro .v6-scoreboard{grid-template-columns:minmax(0,1fr) minmax(96px,.55fr) minmax(0,1fr);gap:0;align-items:stretch}
+html.pro .v6-scoreboard>div{padding:0 10px 14px;gap:8px;justify-content:flex-start}
+html.pro .v6-scoreboard>div:first-child>span,html.pro .v6-scoreboard>div:last-child>span{align-self:stretch;margin:0 -10px;padding:9px 10px 8px;background:var(--good);color:#fff;font-family:var(--display);font-weight:700;font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;padding-left:30px;padding-right:30px}
+html.pro .v6-scoreboard>div:last-child>span{background:var(--bad)}
+html.pro .v6-scoreboard>div.pv-serving>span::after{content:'';position:absolute;top:50%;width:11px;height:11px;margin-top:-5.5px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 30%,transparent)}
+html.pro .v6-scoreboard>div:first-child.pv-serving>span::after{right:12px}
+html.pro .v6-scoreboard>div:last-child.pv-serving>span::after{left:12px}
+html.pro .v6-scoreboard strong{font-family:var(--display);font-weight:800;font-size:clamp(4.6rem,13vw,8rem);line-height:.9;letter-spacing:-.01em;margin-top:6px;display:block}
+html.pro .v6-scoreboard>div>button{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;font-weight:600;font-size:.8rem;min-height:40px;padding:8px 14px}
+html.pro .v6-scoreboard>div:first-child>button:hover{border-color:var(--good);color:var(--ink)}
+html.pro .v6-scoreboard>div:last-child>button{background:transparent;border-color:var(--line)}
+html.pro .v6-scoreboard>div:last-child>button:hover{border-color:var(--bad);color:var(--ink)}
+html.pro .v6-scoreboard .v6-midscore{background:var(--bg);border-left:1px solid var(--line);border-right:1px solid var(--line);padding:12px 6px;justify-content:center;gap:6px}
+html.pro .v6-midscore span{font-family:var(--display);font-weight:700;letter-spacing:.08em;font-size:.78rem;color:var(--muted)}
+html.pro .v6-midscore span:first-child{color:var(--teal);font-size:.95rem}
+html.pro .v6-midscore b{font-family:var(--display);font-weight:800;font-size:2rem;line-height:1}
+html.pro .v6-scoretools{margin:0;padding:10px 14px;border-top:1px solid var(--line);background:var(--panel)}
+html.pro .v6-serving span,html.pro .v6-scorelinks span{color:var(--muted);font-weight:600;font-size:.82rem}
+html.pro .v6-serving button,html.pro .v6-scorelinks button{background:var(--panel-2);border-color:var(--line);color:var(--ink);border-radius:7px;font-weight:600}
+html.pro .v6-serving button.chosen{background:color-mix(in srgb,var(--gold) 20%,var(--panel));border-color:var(--gold);color:var(--ink)}
+html.pro .v6-scoreboard strong.pv-bump{animation:pv-bump .26s var(--ease)}
+html.pro .v6-scoreboard>div.pv-flash>span{animation:pv-flash .5s var(--ease)}
+@keyframes pv-bump{0%{transform:scale(1)}35%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes pv-flash{0%{filter:brightness(1.6)}100%{filter:brightness(1)}}
+
+/* who serves prompt */
+html.pro .v7-firstserve{background:color-mix(in srgb,var(--gold) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--gold) 70%,var(--line));border-radius:var(--r)}
+html.pro .v7-firstserve b{font-family:var(--display);font-size:1.3rem;font-weight:700}
+html.pro .v7-firstserve span{color:color-mix(in srgb,var(--gold) 35%,var(--ink))}
+
+/* mini court on the match screen */
+html.pro .v7-courthead b{font-family:var(--display);font-size:1.25rem;font-weight:700}
+html.pro .v7-court{background:var(--court);padding:6px;border-radius:8px;gap:4px;border:2px solid color-mix(in srgb,var(--glow) 70%,var(--court))}
+html.pro .v7-net{color:color-mix(in srgb,var(--glow) 80%,var(--court));border-bottom:3px solid color-mix(in srgb,var(--glow) 85%,var(--court));font-family:var(--display);font-weight:700}
+html.pro .v7-pos{background:color-mix(in srgb,var(--shade) 30%,var(--court));border-color:color-mix(in srgb,var(--glow) 18%,var(--court));border-radius:6px}
+html.pro .v7-pos small{color:color-mix(in srgb,var(--glow) 65%,var(--court))}
+html.pro .v7-pos b{font-family:var(--display);font-weight:800;font-size:1.25rem}
+html.pro .v7-pos.serving{background:color-mix(in srgb,var(--gold) 22%,var(--court));border-color:var(--gold)}
+
+/* log a point: the two big buttons */
+html.pro .v6-sides{gap:10px}
+html.pro .v6-sides button{background:var(--good);border:0;border-radius:10px;color:#fff;font-family:var(--display);font-weight:800;font-size:clamp(1.35rem,2.6vw,1.75rem);letter-spacing:.04em;text-transform:uppercase;min-height:96px;transition:filter .12s,transform .1s}
+html.pro .v6-sides button.away{background:var(--bad)}
+html.pro .v6-sides button:hover{filter:brightness(1.08)}
+html.pro .v6-sides button.active{outline:3px solid var(--ink);outline-offset:3px}
+html.pro .v6-help{font-family:var(--display);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-size:.85rem}
+html.pro .v6-causes button,html.pro .v6-timeout-grid button,html.pro .v6-passer-grid button,html.pro .v6-pass-ratings button{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-weight:600}
+html.pro .v6-causes button.active{background:color-mix(in srgb,var(--teal) 16%,var(--panel));border-color:var(--teal)}
+html.pro .v6-athlete{background:var(--panel-2);border-color:var(--line);border-radius:8px}
+html.pro .v6-athlete strong{font-family:var(--display);font-weight:800;font-size:1.7rem;color:var(--ink)}
+html.pro .v6-history-item{border-bottom-color:var(--line)}
+html.pro .v6-history-item small{font-weight:600}
+
+/* serve receive ratings: keep the 0-3 meaning, flatter */
+html.pro .v7-srrates button,html.pro .gd-rate{border-radius:8px;border:0}
+html.pro .v7-srrates b{font-family:var(--display);font-weight:800;font-size:1.6rem}
+
+/* game day */
+html.pro .gd-page-mark{display:none}
+html.pro .gd-topline{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+html.pro .gd-topline span{font-family:var(--display);letter-spacing:.08em;font-weight:700;color:var(--muted)}
+html.pro .gd-topline strong,html.pro .gd-kpi strong,html.pro .gd-record strong{font-family:var(--display);font-weight:800}
+html.pro .gd-kpi,html.pro .gd-rotation{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+html.pro .gd-rotation.current{border-color:var(--teal);background:color-mix(in srgb,var(--teal) 8%,var(--panel))}
+html.pro .gd-now{color:var(--teal)}
+html.pro .gd-bars{background:color-mix(in srgb,var(--bad) 55%,var(--panel));border-radius:3px}
+html.pro .gd-bars>span{background:var(--good)}
+
+/* lineup court */
+html.pro .rotation-court{background:var(--court);border-color:color-mix(in srgb,var(--glow) 80%,var(--court))}
+html.pro .rotation-player{background:color-mix(in srgb,var(--shade) 30%,var(--court));border-color:color-mix(in srgb,var(--glow) 22%,var(--court));border-radius:10px}
+html.pro .rotation-player:hover{background:color-mix(in srgb,var(--shade) 15%,var(--court))}
+html.pro .rotation-player.selected{border-color:var(--gold);background:color-mix(in srgb,var(--gold) 18%,var(--court))}
+html.pro .rotation-jersey{font-family:var(--display);font-weight:800;color:var(--ink);font-size:clamp(1.8rem,3.6vw,2.6rem)}
+html.pro .position-meta,html.pro .rotation-zone{color:color-mix(in srgb,var(--glow) 70%,var(--court))}
+html.pro .candidate{background:var(--panel-2);border-color:var(--line);border-radius:8px}
+html.pro .candidate.current{background:color-mix(in srgb,var(--gold) 14%,var(--panel));border-color:var(--gold)}
+
+/* tourney */
+html.pro .tn-next{border:1px solid var(--teal);border-radius:var(--r);background:color-mix(in srgb,var(--teal) 7%,var(--panel))}
+html.pro .tn-next .btn.primary{align-self:flex-start}
+html.pro .tn-card{border:1px solid var(--line);border-radius:8px}
+html.pro .tn-card.tn-final{border-color:var(--gold)}
+html.pro .tn-game{border-radius:8px}
+html.pro .tn-score.tn-ours{border-left:1px solid color-mix(in srgb,var(--teal) 60%,var(--line))}
+html.pro .tn-game.tn-ours{border-color:color-mix(in srgb,var(--teal) 60%,var(--line))}
+html.pro .tn-me,html.pro .tn-pool li.me,html.pro .tn-res.win{color:var(--teal)}
+html.pro .tn-vs.big{font-family:var(--display);font-weight:700;font-size:1.6rem}
+html.pro .tn-set{border-radius:6px}
+
+/* whiteboard keeps its white surface */
+html.pro .board-simple .board-shell{background:#f4f5f2;border-color:#cfd3cc}
+html.pro .board-simple .board-toolbar{background:var(--panel);border-color:var(--line);border-radius:10px}
+html.pro .wb-badge{display:none}
+
+@media(max-width:700px){
+  html.pro .tab{padding:9px 4px 11px;font-size:.7rem;font-weight:600;gap:4px}
+  html.pro .tab::after{left:8px;right:8px}
+  html.pro .v6-scoreboard{grid-template-columns:minmax(0,1fr) 78px minmax(0,1fr)}
+  html.pro .v6-scoreboard>div:first-child>span,html.pro .v6-scoreboard>div:last-child>span{font-size:.92rem;padding-right:26px}
+  html.pro .v6-scoreboard>div:last-child>span{padding-right:10px;padding-left:26px}
+  html.pro .v6-scoreboard strong{font-size:clamp(4.2rem,22vw,6rem)}
+  html.pro .v6-midscore b{font-size:1.6rem}
+  html.pro .v6-sides button{min-height:86px}
+}
+@media(prefers-reduced-motion:reduce){
+  html.pro *,html.pro *::after{animation:none!important;transition:none!important}
+}
