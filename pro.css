@@ -1,6 +1,6 @@
 /* VolleyBoard "Pro" look (preview). Active only when <html class="pro">.
    World: sports broadcast graphics. It lends type (Barlow / Barlow Condensed),
-   palette (gym-dark ground, lime accent, strong green/red for points),
+   palette (gym-dark ground, Barons green accent, strong green/red for points),
    density, and one signature move: the score bug. Layout and controls stay the app's own. */
 
 @font-face{font-family:Barlow;font-weight:400;font-display:swap;src:url(fonts/barlow-regular.woff) format('woff')}
@@ -11,9 +11,9 @@
 
 html.pro{
   --bg:#0b0c0e;--panel:#15171b;--panel-2:#1d2025;--line:#2c3037;--ink:#f4f5f6;--muted:#a3a9b2;
-  --teal:#c6ef4a;--blue:#74a9ff;--gold:#ffc83d;--good:#1f9d55;--bad:#d63b3b;--mint:#8fe7a9;--red:#ff8f8f;
+  --teal:#7fe0a0;--blue:#74a9ff;--gold:#ffc83d;--good:#1d8a48;--bad:#d63b3b;--mint:#9ff0b8;--red:#ff8f8f;
   --court:#1c4a86;--shade:#000;--glow:#fff;--on-accent:#fff;
-  --on-lime:#12160a;--r:10px;--shadow:none;
+  --on-lime:#0c2a17;--r:10px;--shadow:none;
   --display:'Barlow Condensed','Arial Narrow',sans-serif;
   --ease:cubic-bezier(.2,.8,.2,1);
   accent-color:var(--teal);caret-color:var(--teal);
@@ -218,3 +218,11 @@ html.pro .gd-passer b,html.pro .gd-passer strong{color:var(--ink)}
 /* history / team danger buttons: same red family as Their point */
 html.pro .btn.red{background:transparent;border-color:color-mix(in srgb,var(--bad) 70%,var(--line));color:color-mix(in srgb,var(--bad) 35%,var(--ink))}
 html.pro .btn.red:hover{background:color-mix(in srgb,var(--bad) 18%,var(--panel))}
+
+/* Barons pass: real logo in the header, no decorative icon tiles, panels as plain lifted surfaces */
+html.pro .brand-logo{height:38px}
+html.pro .empty-state{text-align:left}
+html.pro .empty-icon{display:none}
+html.pro .empty-state h2{margin-top:0}
+html.pro .panel{border-color:transparent}
+html.pro .v6-scoreboard .tlogo{width:1.55em;height:1.55em}

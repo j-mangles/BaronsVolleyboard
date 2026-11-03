@@ -1,5 +1,8 @@
-const CACHE='volleyboard-v15-20261102';
-const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg','./icon-180.png','./icon-512.png','./sync.js','./sync-core.js','./sync-config.js','./tourney.js','./pro.css','./pro.js','./fonts/barlow-regular.woff','./fonts/barlow-semibold.woff','./fonts/barlow-bold.woff','./fonts/barlowcondensed-bold.woff','./fonts/barlowcondensed-extrabold.woff'];
+const CACHE='volleyboard-v16-20261103';
+const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg','./icon-180.png','./icon-512.png','./sync.js','./sync-core.js','./sync-config.js','./tourney.js','./logos.js','./barons-b.png','./pro.css','./pro.js','./fonts/barlow-regular.woff','./fonts/barlow-semibold.woff','./fonts/barlow-bold.woff','./fonts/barlowcondensed-bold.woff','./fonts/barlowcondensed-extrabold.woff'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('volleyboard-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
+// School logos from MHSAA: cache-first, kept across app updates in their own cache (opaque cross-origin responses).
+const LOGOS='vb-logos-1';
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method==='GET'&&u.hostname==='www.mhsaa.ca'){e.respondWith(caches.open(LOGOS).then(c=>c.match(e.request).then(hit=>hit||fetch(e.request).then(r=>{if(r.ok||r.type==='opaque')c.put(e.request,r.clone()).catch(()=>{});return r}))));}});
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||!(new URL(e.request.url).origin===self.location.origin||new URL(e.request.url).hostname==='www.gstatic.com'))return;e.respondWith(fetch(e.request).then(response=>{if(response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(e.request,copy)).catch(()=>{});}return response;}).catch(()=>caches.match(e.request)));});
