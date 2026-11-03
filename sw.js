@@ -1,4 +1,4 @@
-const CACHE='volleyboard-v12-20261102';
+const CACHE='volleyboard-v13-20261102';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg','./sync.js','./sync-core.js','./sync-config.js','./tourney.js','./pro.css','./pro.js','./fonts/barlow-regular.woff','./fonts/barlow-semibold.woff','./fonts/barlow-bold.woff','./fonts/barlowcondensed-bold.woff','./fonts/barlowcondensed-extrabold.woff'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('volleyboard-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
