@@ -185,3 +185,36 @@ html.pro .wb-badge{display:none}
 @media(prefers-reduced-motion:reduce){
   html.pro *,html.pro *::after{animation:none!important;transition:none!important}
 }
+
+/* ONE palette everywhere: lime = tap/selected, green/red = us/them, gold = serve/warning, navy = court only.
+   Everything else is neutral. */
+html.pro{--mint:#7fdc9f}
+html.pro .btn.blue{background:var(--panel-2);border-color:var(--line);color:var(--ink)}
+html.pro .btn.blue:hover{background:color-mix(in srgb,var(--panel-2) 80%,var(--ink))}
+html.pro a,html.pro .tn-venue{color:var(--ink);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--teal) 70%,transparent);text-underline-offset:3px}
+html.pro .tag{color:var(--muted);font-family:var(--display);font-weight:700;letter-spacing:.08em}
+html.pro .save-status{color:var(--muted)}
+html.pro .save-status .pv-dot{color:var(--good)}
+html.pro .pill.live{color:var(--ink)}
+html.pro .pill.live::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--good)}
+/* pass quality 0-3: red, gold, neutral, green, all from the same tokens */
+html.pro .v7-r0,html.pro .gd-rate-0{background:color-mix(in srgb,var(--bad) 30%,var(--panel));border:1px solid color-mix(in srgb,var(--bad) 70%,var(--line))}
+html.pro .v7-r1,html.pro .gd-rate-1{background:color-mix(in srgb,var(--gold) 16%,var(--panel));border:1px solid color-mix(in srgb,var(--gold) 60%,var(--line))}
+html.pro .v7-r2,html.pro .gd-rate-2{background:var(--panel-2);border:1px solid var(--line)}
+html.pro .v7-r3,html.pro .gd-rate-3{background:color-mix(in srgb,var(--good) 30%,var(--panel));border:1px solid color-mix(in srgb,var(--good) 75%,var(--line))}
+html.pro .v7-srrates button,html.pro .gd-rate{color:var(--ink)}
+html.pro .v6-pass-ratings button{background:var(--panel-2);border-color:var(--line);color:var(--ink)}
+/* serve zones and heatmap sit on the court colour like the other courts */
+html.pro .v6-zonecourt,html.pro .v6-heatmap{background:var(--court);border:2px solid color-mix(in srgb,var(--glow) 80%,var(--court));border-radius:8px}
+html.pro .v6-zonecourt button,html.pro .v6-heatmap>div{background:color-mix(in srgb,var(--shade) 30%,var(--court));border:1px solid color-mix(in srgb,var(--glow) 18%,var(--court));color:var(--ink);border-radius:6px}
+html.pro .v6-zonecourt button.selected{background:color-mix(in srgb,var(--gold) 25%,var(--court));border-color:var(--gold);color:var(--ink);outline:none}
+html.pro .v6-heatmap small{color:color-mix(in srgb,var(--glow) 65%,var(--court))}
+html.pro .v6-heatmap strong,html.pro .v6-zonecourt button{font-family:var(--display);font-weight:800}
+/* jerseys and chips: neutral unless selected */
+html.pro .jersey{background:var(--line);color:var(--ink)}
+html.pro .candidate.current .jersey{background:var(--gold);color:#241a02}
+html.pro .gd-passer,html.pro .v7-srplayers button,html.pro .v6-passer-grid button{background:var(--panel-2);border-color:var(--line)}
+html.pro .gd-passer b,html.pro .gd-passer strong{color:var(--ink)}
+/* history / team danger buttons: same red family as Their point */
+html.pro .btn.red{background:transparent;border-color:color-mix(in srgb,var(--bad) 70%,var(--line));color:color-mix(in srgb,var(--bad) 35%,var(--ink))}
+html.pro .btn.red:hover{background:color-mix(in srgb,var(--bad) 18%,var(--panel))}
