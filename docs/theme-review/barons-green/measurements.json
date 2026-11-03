@@ -1,0 +1,526 @@
+[
+  {
+    "theme": "barons-green",
+    "device": "phone",
+    "screen": "match",
+    "measurements": [
+      {
+        "text": "▦ Match",
+        "ratio": 9.12,
+        "size": "11.36px",
+        "minHeight": 72
+      },
+      {
+        "text": "+1 quick",
+        "ratio": 11.12,
+        "size": "11.04px",
+        "minHeight": 42
+      },
+      {
+        "text": "+1 quick",
+        "ratio": 11.11,
+        "size": "11.04px",
+        "minHeight": 42
+      },
+      {
+        "text": "✓ Our point",
+        "ratio": 6.5,
+        "size": "15.2px",
+        "minHeight": 74
+      },
+      {
+        "text": "✓ Their point",
+        "ratio": 7.16,
+        "size": "15.2px",
+        "minHeight": 74
+      },
+      {
+        "text": "Kill",
+        "ratio": 6.66,
+        "size": "13.44px",
+        "minHeight": 53
+      },
+      {
+        "text": "Ace",
+        "ratio": 5.3,
+        "size": "13.44px",
+        "minHeight": 53
+      },
+      {
+        "text": "Block",
+        "ratio": 5.3,
+        "size": "13.44px",
+        "minHeight": 53
+      },
+      {
+        "text": "Their error",
+        "ratio": 5.3,
+        "size": "13.44px",
+        "minHeight": 53
+      }
+    ]
+  },
+  {
+    "theme": "barons-green",
+    "device": "phone",
+    "screen": "tourney",
+    "measurements": [
+      {
+        "text": "🏆 Tourney",
+        "ratio": 9.12,
+        "size": "11.36px",
+        "minHeight": 72
+      },
+      {
+        "text": "Neelin Dig Boys Tournament",
+        "ratio": 17.51,
+        "size": "23.2px",
+        "minHeight": 27
+      },
+      {
+        "text": "Up next · Fri Nov 6, 3:30 PM · Maryland Park ",
+        "ratio": 10.3,
+        "size": "13.76px",
+        "minHeight": 30
+      },
+      {
+        "text": "Maryland Park School ↗",
+        "ratio": 7.8,
+        "size": "13.76px",
+        "minHeight": 30
+      },
+      {
+        "text": "Maryland Park School ↗",
+        "ratio": 7.8,
+        "size": "13.12px",
+        "minHeight": 15
+      },
+      {
+        "text": "Edward Schreyer",
+        "ratio": 8.28,
+        "size": "16.32px",
+        "minHeight": 37
+      },
+      {
+        "text": "Edward Schreyer",
+        "ratio": 8.28,
+        "size": "16.32px",
+        "minHeight": 37
+      },
+      {
+        "text": "Edward Schreyer",
+        "ratio": 8.28,
+        "size": "16.32px",
+        "minHeight": 37
+      },
+      {
+        "text": "#",
+        "ratio": 10.3,
+        "size": "12px",
+        "minHeight": 29
+      },
+      {
+        "text": "Team",
+        "ratio": 10.3,
+        "size": "12px",
+        "minHeight": 29
+      },
+      {
+        "text": "Sets",
+        "ratio": 10.3,
+        "size": "12px",
+        "minHeight": 29
+      },
+      {
+        "text": "Pts ratio",
+        "ratio": 10.3,
+        "size": "12px",
+        "minHeight": 29
+      },
+      {
+        "text": "8:00 AM · Vincent Massey High School ↗ BA1vs ",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 80
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "2:00 PM · Vincent Massey High School ↗ BA13vs",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 82
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "5:00 PM · Vincent Massey High School ↗ BA19vs",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 114
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "6:00 PM · Neelin High School ↗ BA22A side fin",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 114
+      },
+      {
+        "text": "Neelin High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "12:00 PM · Vincent Massey High School ↗ BA9vs",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 82
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "4:00 PM · Vincent Massey High School ↗ BA17vs",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 114
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "6:00 PM · Vincent Massey High School ↗ BA21A ",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 128
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      }
+    ]
+  },
+  {
+    "theme": "barons-green",
+    "device": "phone",
+    "screen": "lineup",
+    "measurements": [
+      {
+        "text": "⟳ Lineup",
+        "ratio": 9.12,
+        "size": "11.36px",
+        "minHeight": 72
+      },
+      {
+        "text": "Rotation & lineup",
+        "ratio": 17.51,
+        "size": "23.2px",
+        "minHeight": 27
+      }
+    ]
+  },
+  {
+    "theme": "barons-green",
+    "device": "phone",
+    "screen": "game-day",
+    "measurements": [
+      {
+        "text": "▤ Game Day",
+        "ratio": 9.12,
+        "size": "11.36px",
+        "minHeight": 72
+      },
+      {
+        "text": "Game Day BARONS",
+        "ratio": 17.51,
+        "size": "23.2px",
+        "minHeight": 27
+      }
+    ]
+  },
+  {
+    "theme": "barons-green",
+    "device": "ipad",
+    "screen": "match",
+    "measurements": [
+      {
+        "text": "▦ Match",
+        "ratio": 9.12,
+        "size": "16px",
+        "minHeight": 49
+      },
+      {
+        "text": "+1 quick",
+        "ratio": 11.12,
+        "size": "16px",
+        "minHeight": 42
+      },
+      {
+        "text": "+1 quick",
+        "ratio": 11.11,
+        "size": "16px",
+        "minHeight": 42
+      },
+      {
+        "text": "✓ Our point",
+        "ratio": 6.5,
+        "size": "15.36px",
+        "minHeight": 78
+      },
+      {
+        "text": "✓ Their point",
+        "ratio": 7.16,
+        "size": "15.36px",
+        "minHeight": 78
+      },
+      {
+        "text": "Kill",
+        "ratio": 6.66,
+        "size": "13.44px",
+        "minHeight": 55
+      },
+      {
+        "text": "Ace",
+        "ratio": 5.3,
+        "size": "13.44px",
+        "minHeight": 55
+      },
+      {
+        "text": "Block",
+        "ratio": 5.3,
+        "size": "13.44px",
+        "minHeight": 55
+      },
+      {
+        "text": "Their error",
+        "ratio": 5.3,
+        "size": "13.44px",
+        "minHeight": 55
+      }
+    ]
+  },
+  {
+    "theme": "barons-green",
+    "device": "ipad",
+    "screen": "tourney",
+    "measurements": [
+      {
+        "text": "🏆 Tourney",
+        "ratio": 9.12,
+        "size": "16px",
+        "minHeight": 49
+      },
+      {
+        "text": "Neelin Dig Boys Tournament",
+        "ratio": 17.51,
+        "size": "27.2px",
+        "minHeight": 32
+      },
+      {
+        "text": "Up next · Fri Nov 6, 3:30 PM · Maryland Park ",
+        "ratio": 10.3,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "Maryland Park School ↗",
+        "ratio": 7.8,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "Maryland Park School ↗",
+        "ratio": 7.8,
+        "size": "13.12px",
+        "minHeight": 15
+      },
+      {
+        "text": "Edward Schreyer",
+        "ratio": 8.28,
+        "size": "16.32px",
+        "minHeight": 18
+      },
+      {
+        "text": "Edward Schreyer",
+        "ratio": 8.28,
+        "size": "16.32px",
+        "minHeight": 18
+      },
+      {
+        "text": "Edward Schreyer",
+        "ratio": 8.28,
+        "size": "16.32px",
+        "minHeight": 18
+      },
+      {
+        "text": "#",
+        "ratio": 10.3,
+        "size": "12px",
+        "minHeight": 29
+      },
+      {
+        "text": "Team",
+        "ratio": 10.3,
+        "size": "12px",
+        "minHeight": 29
+      },
+      {
+        "text": "Sets",
+        "ratio": 10.3,
+        "size": "12px",
+        "minHeight": 29
+      },
+      {
+        "text": "Pts ratio",
+        "ratio": 10.3,
+        "size": "12px",
+        "minHeight": 29
+      },
+      {
+        "text": "8:00 AM · Vincent Massey High School ↗ BA1vs ",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 62
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "2:00 PM · Vincent Massey High School ↗ BA13vs",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 82
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "5:00 PM · Vincent Massey High School ↗ BA19vs",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 82
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "6:00 PM · Neelin High School ↗ BA22A side fin",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 99
+      },
+      {
+        "text": "Neelin High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "12:00 PM · Vincent Massey High School ↗ BA9vs",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 82
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "4:00 PM · Vincent Massey High School ↗ BA17vs",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 82
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      },
+      {
+        "text": "6:00 PM · Vincent Massey High School ↗ BA21A ",
+        "ratio": 12.54,
+        "size": "16px",
+        "minHeight": 99
+      },
+      {
+        "text": "Vincent Massey High School ↗",
+        "ratio": 6.57,
+        "size": "13.76px",
+        "minHeight": 15
+      }
+    ]
+  },
+  {
+    "theme": "barons-green",
+    "device": "ipad",
+    "screen": "lineup",
+    "measurements": [
+      {
+        "text": "⟳ Lineup",
+        "ratio": 9.12,
+        "size": "16px",
+        "minHeight": 49
+      },
+      {
+        "text": "Rotation & lineup",
+        "ratio": 17.51,
+        "size": "27.2px",
+        "minHeight": 32
+      }
+    ]
+  },
+  {
+    "theme": "barons-green",
+    "device": "ipad",
+    "screen": "game-day",
+    "measurements": [
+      {
+        "text": "▤ Game Day",
+        "ratio": 9.12,
+        "size": "16px",
+        "minHeight": 49
+      },
+      {
+        "text": "Game Day BARONS",
+        "ratio": 17.51,
+        "size": "27.2px",
+        "minHeight": 32
+      }
+    ]
+  }
+]
