@@ -330,6 +330,16 @@ const isPoint=e=>e&&(e.dh===1&&e.da===0||e.da===1&&e.dh===0);
 const rotationNumber=n=>((Math.trunc(Number(n)||0)%6+6)%6)+1;
 const groupKey=ids=>[...new Set((ids||[]).filter(Boolean))].sort().join('|');
 const rate=(a,b)=>b?Math.round(100*a/b):null;
+ // Historical serving edits overlay the event; original score and rally are untouched.
+ function serviceContext(m,ev){
+  const raw=ev.rallyContext?.serving||null,fix=ev.serveFix||{};
+  const explicit=['ace','serveError','serveIn'].includes(ev.action);
+  const flip=Boolean(m.serviceReview?.[ev.setIndex]?.flip);
+  const side=explicit?'home':(fix.side||((flip&&raw==='home')?'away':(flip&&raw==='away')?'home':raw));
+  const original=explicit&&ev.playerId?ev.playerId:(raw==='home'?ev.rallyContext?.serverId:null);
+  const serverId=side==='home'&&Object.prototype.hasOwnProperty.call(fix,'serverId')?fix.serverId:(side==='home'?original:null);
+  return {side,serverId:serverId||null};
+ }
 function analyze(m,scope='set'){
  const setIndex=(m.sets||[]).length-1;
  const inScope=e=>scope!=='set'||e.setIndex===setIndex;
@@ -341,7 +351,7 @@ function analyze(m,scope='set'){
  for(const ev of tracked){
   const r=rotations[rotationNumber(ev.rallyContext.rotation)-1],w=ev.dh===1;
   r.total++;r.won+=Number(w);r.lost+=Number(!w);
-  const side=ev.rallyContext.serving;
+  const side=serviceContext(m,ev).side;
   if(side==='away'){r.sideoutTotal++;r.sideoutWon+=Number(w);knownService++}
   else if(side==='home'){r.breakTotal++;r.breakWon+=Number(w);knownService++}
   else unknownService++;
@@ -359,13 +369,13 @@ function analyze(m,scope='set'){
   if(!inScope(ev))continue;
   if(ev.setIndex!==pendingSet){pending=null;pendingSet=ev.setIndex}
   if(ev.action==='serveIn'){
-   const id=ev.playerId||ev.rallyContext?.serverId||null,s=getServer(id);
+   const id=serviceContext(m,ev).serverId,s=getServer(id);
    s.attempts++;s.in++;pending=id||'__unknown__';continue;
   }
   if(!isPoint(ev))continue;
-  const side=ev.rallyContext?.serving,explicit=ev.action==='ace'||ev.action==='serveError';
+  const context=serviceContext(m,ev),side=context.side,explicit=ev.action==='ace'||ev.action==='serveError';
   if(side!=='home'&&!explicit){pending=null;continue}
-  const id=(explicit&&ev.playerId)||(pending==='__unknown__'?null:pending)||ev.rallyContext?.serverId||null;
+  const id=pending===null?context.serverId:pending==='__unknown__'?null:pending;
   const stat=getServer(id);
   if(ev.action==='serveError'){stat.attempts++;stat.errors++}
   else if(pending===null){stat.attempts++;stat.in++}
@@ -399,11 +409,11 @@ function analyze(m,scope='set'){
  const lineupMap=new Map();
  for(const ev of tracked){const ids=(ev.rallyContext.lineup||[]).filter(Boolean);if(ids.length<6)continue;const k=groupKey(ids);
   const L=lineupMap.get(k)||{key:k,ids:ids.slice().sort(),total:0,won:0,sideoutWon:0,sideoutTotal:0,breakWon:0,breakTotal:0};
-  const w=ev.dh===1;L.total++;L.won+=Number(w);if(ev.rallyContext.serving==='away'){L.sideoutTotal++;L.sideoutWon+=Number(w)}else if(ev.rallyContext.serving==='home'){L.breakTotal++;L.breakWon+=Number(w)}lineupMap.set(k,L);}
+  const w=ev.dh===1;L.total++;L.won+=Number(w);if(serviceContext(m,ev).side==='away'){L.sideoutTotal++;L.sideoutWon+=Number(w)}else if(serviceContext(m,ev).side==='home'){L.breakTotal++;L.breakWon+=Number(w)}lineupMap.set(k,L);}
  const lineups=[...lineupMap.values()].sort((a,b)=>b.total-a.total);
  return {rallies:rallies.length,tracked:tracked.length,missing,rotations,servers,groups,passCount:Math.max(passCount,allPassN),passAverage:allPassN?allPassT/allPassN:(passCount?passTotal/passCount:null),unknownService,knownService,passers,byPass,lineups};
 }
-return {analyze,rotationNumber,groupKey,rate};
+return {analyze,rotationNumber,groupKey,rate,serviceContext};
 });
 
 </script>
@@ -476,7 +486,7 @@ function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(Object.assign({
 function match(){return state.matches.find(m=>m.id===state.currentMatchId)||null}
 function selectedPlayer(m=match()){return m?.roster.find(p=>p.id===state.selectedPlayerId)||m?.roster[0]||null}
 function matchWins(m){return m.sets.reduce((r,s)=>{if(s.winner==='home')r.home++;if(s.winner==='away')r.away++;return r},{home:0,away:0})}
-function countStats(m,playerId,setIndex=null){const res={kill:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0,attackAttempt:0,ourError:0};for(const ev of m.events){if((ev.playerId||(['ace','serveError'].includes(ev.action)?ev.rallyContext?.serverId:null))===playerId&&(setIndex===null||setIndex===ev.setIndex)&&res[ev.action]!==undefined)res[ev.action]++}return res}
+function countStats(m,playerId,setIndex=null){const res={kill:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0,attackAttempt:0,ourError:0};for(const ev of m.events){const credited=['ace','serveError'].includes(ev.action)?Analytics.serviceContext(m,ev).serverId:ev.playerId;if(credited===playerId&&(setIndex===null||setIndex===ev.setIndex)&&res[ev.action]!==undefined)res[ev.action]++}return res}
 function totals(m){const t={kill:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0};m.events.forEach(ev=>{if(t[ev.action]!==undefined)t[ev.action]++});return t}
 function summaryTable(m,setIndex=null){
  if(!m.roster.length)return '<p class="no-data">No players on this match roster.</p>';
