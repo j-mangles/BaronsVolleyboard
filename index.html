@@ -511,7 +511,7 @@ function historyServingLine(m){
  const servers=Analytics.analyze(m,'match').servers,add=k=>servers.reduce((x,v)=>x+v[k],0),att=add('attempts');
  return att?'Serving: '+add('in')+'/'+att+' in · '+add('aces')+' aces · '+add('errors')+' errors':'Serving: no attempts recorded';
 }
-function actionText(ev,m){if(ev.action==='timeout')return (ev.side==='home'?'Our':'Opponent')+' timeout · '+(ev.score?.home??'?')+'–'+(ev.score?.away??'?');if(ev.action==='passRating'){const pp=ev.playerId&&m.roster.find(x=>x.id===ev.playerId);return 'Pass '+ev.rating+'/3'+(pp?' · #'+pp.number+' '+pp.name:'');}const p=ev.playerId?m.roster.find(x=>x.id===ev.playerId):null;return (p?'#'+p.number+' '+p.name+' · ':'')+(ACTIONS[ev.action]?.label||ev.action)}
+function actionText(ev,m){if(ev.action==='timeout')return (ev.side==='home'?'Our':'Opponent')+' timeout · '+(ev.score?.home??'?')+'–'+(ev.score?.away??'?');if(ev.action==='passRating'){const pp=ev.playerId&&m.roster.find(x=>x.id===ev.playerId);return 'Pass '+ev.rating+'/3'+(pp?' · #'+pp.number+' '+pp.name:'');}const credited=['ace','serveError'].includes(ev.action)?Analytics.serviceContext(m,ev).serverId:(Object.prototype.hasOwnProperty.call(ev,'statPlayerFixId')?ev.statPlayerFixId:ev.playerId);const p=credited?m.roster.find(x=>x.id===credited):null;return (p?'#'+p.number+' '+p.name+' · ':'')+(ACTIONS[ev.action]?.label||ev.action)}
 function render(){
   document.body.classList.toggle('board-focus',!!(state.boardFocus&&state.tab==='board'));
   document.body.classList.toggle('board-simple',state.tab==='board'&&state.board.layout==='blank');
@@ -741,12 +741,13 @@ function renderServeReview(m){
   const chosen=m.roster.find(p=>p.id===ctx.serverId);
   const server=options(current,[['auto','Recorded'+(chosen?' · #'+chosen.number:' · unknown')],['none','Unassigned'],...m.roster.map(p=>[p.id,'#'+p.number+' '+p.name])]);
   const playerAction=['kill','attackError','ourError','block','dig','assist','attackAttempt'].includes(e.action);
+  const hasServeContext=e.action==='serveIn'||e.dh===1||e.da===1;
   const credited=e.statPlayerFixId??e.playerId;
   const creditedName=m.roster.find(p=>p.id===credited)?.name||'Unassigned';
   const playerOptions=options(Object.prototype.hasOwnProperty.call(e,'statPlayerFixId')?(e.statPlayerFixId||'none'):'auto',[['auto','Original · '+creditedName],['none','Unassigned'],...m.roster.map(p=>[p.id,'#'+p.number+' '+p.name])]);
   return '<div class="v11-review-row"><div class="v11-review-desc"><b>Rally '+(index+1)+' · '+esc(ACTIONS[e.action]?.label||e.action)+'</b><small>'+ (e.dh===1?'+1 Barons':e.da===1?'+1 opponent':'No point')+' · recorded '+esc(original)+' · now '+esc(ctx.side||'unknown')+'</small></div>'+
-   '<label>Serving side<select data-serve-fix="side" data-event-id="'+esc(e.id)+'" '+(explicit?'disabled':'')+'>'+side+'</select></label>'+
-   '<label>Actual server<select data-serve-fix="server" data-event-id="'+esc(e.id)+'" '+(ctx.side!=='home'?'disabled':'')+'>'+server+'</select></label>'+
+   (hasServeContext?'<label>Serving side<select data-serve-fix="side" data-event-id="'+esc(e.id)+'" '+(explicit?'disabled':'')+'>'+side+'</select></label>'+
+   '<label>Actual server<select data-serve-fix="server" data-event-id="'+esc(e.id)+'" '+(ctx.side!=='home'?'disabled':'')+'>'+server+'</select></label>':'')+
    (playerAction?'<label>Player credited for play<select data-stat-player-fix data-event-id="'+esc(e.id)+'">'+playerOptions+'</select></label>':'')+'</div>';
  }).join('');
  return '<div class="v11-review"><div class="button-spread"><div><h3>Serve review · '+esc(m.opponent)+'</h3><p class="section-intro">Changes fix serving statistics, not scores or original lineup history.</p></div><button class="btn sm ghost" data-action="close-serve-review">Close</button></div>'+
