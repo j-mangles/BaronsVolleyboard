@@ -194,7 +194,7 @@
 @media(max-width:680px){.v8-statstrip{grid-template-columns:repeat(3,minmax(0,1fr))}.v8-statitem{padding:10px 5px}.v8-statitem b{font-size:1.1rem}}
 .v9-stats-section{min-width:0;margin:16px 0 22px}.v9-stats-section h3{font-size:1.05rem;margin:0 0 10px;color:var(--ink)}.v9-history-serves{font-size:.8rem;font-weight:750;color:var(--ink);margin:7px 0 4px}.v9-stats-section .stats-table th,.v9-stats-section .stats-table td{padding:9px 11px}
 .v10-season{margin:0 0 20px}.v10-season-tables{display:grid;gap:18px}.v10-season h3{margin:0 0 10px;color:var(--ink);font-size:1.05rem}.v10-warning{color:var(--ink);background:color-mix(in srgb,var(--gold) 9%,var(--panel));border:1px solid color-mix(in srgb,var(--gold) 30%,var(--line));padding:11px 13px;border-radius:10px;font-size:.83rem;line-height:1.5}.v10-audit-meta{color:var(--muted);font-size:.75rem;margin-top:4px}
-.v11-review{border:1px solid var(--line);background:var(--panel-2);border-radius:13px;padding:16px;margin:18px 0}.v11-review h3{margin:0 0 7px}.v11-review-sets{margin:10px 0;flex-wrap:wrap}.v11-review-list{max-height:480px;overflow-y:auto;margin-top:16px;border-top:1px solid var(--line)}.v11-review-row{display:grid;grid-template-columns:minmax(130px,1fr) minmax(140px,1fr) minmax(170px,1fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.v11-review-row label{font-size:.76rem;font-weight:750;color:var(--muted);min-width:0}.v11-review-row select{width:100%;padding:9px 7px;margin-top:4px;font-size:.84rem}.v11-review-desc b{font-size:.84rem}.v11-review-desc small{display:block;color:var(--muted);font-size:.73rem;margin-top:5px}.v11-bk{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}.v11-bk p{font-size:.82rem;color:var(--muted);line-height:1.5}@media(max-width:700px){.v11-review-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.v11-review-desc{grid-column:span 2}}
+.v11-review{border:1px solid var(--line);background:var(--panel-2);border-radius:13px;padding:16px;margin:18px 0}.v11-review h3{margin:0 0 7px}.v11-review-sets{margin:10px 0;flex-wrap:wrap}.v11-review-list{max-height:480px;overflow-y:auto;margin-top:16px;border-top:1px solid var(--line)}.v11-review-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.v11-review-row label{font-size:.76rem;font-weight:750;color:var(--muted);min-width:0}.v11-review-row select{width:100%;padding:9px 7px;margin-top:4px;font-size:.84rem}.v11-review-desc{grid-column:span 2}.v11-review-desc b{font-size:.84rem}.v11-review-desc small{display:block;color:var(--muted);font-size:.73rem;margin-top:5px}.v11-bk{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}.v11-bk p{font-size:.82rem;color:var(--muted);line-height:1.5}@media(max-width:700px){.v11-review-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.v11-review-desc{grid-column:span 2}}
 </style>
   <title>VolleyBoard • Volleyball Coach</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -488,7 +488,7 @@ function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(Object.assign({
 function match(){return state.matches.find(m=>m.id===state.currentMatchId)||null}
 function selectedPlayer(m=match()){return m?.roster.find(p=>p.id===state.selectedPlayerId)||m?.roster[0]||null}
 function matchWins(m){return m.sets.reduce((r,s)=>{if(s.winner==='home')r.home++;if(s.winner==='away')r.away++;return r},{home:0,away:0})}
-function countStats(m,playerId,setIndex=null){const res={kill:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0,attackAttempt:0,ourError:0};for(const ev of m.events){const credited=['ace','serveError'].includes(ev.action)?Analytics.serviceContext(m,ev).serverId:ev.playerId;if(credited===playerId&&(setIndex===null||setIndex===ev.setIndex)&&res[ev.action]!==undefined)res[ev.action]++}return res}
+function countStats(m,playerId,setIndex=null){const res={kill:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0,attackAttempt:0,ourError:0};for(const ev of m.events){const credited=['ace','serveError'].includes(ev.action)?Analytics.serviceContext(m,ev).serverId:(Object.prototype.hasOwnProperty.call(ev,'statPlayerFixId')?ev.statPlayerFixId:ev.playerId);if(credited===playerId&&(setIndex===null||setIndex===ev.setIndex)&&res[ev.action]!==undefined)res[ev.action]++}return res}
 function totals(m){const t={kill:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0};m.events.forEach(ev=>{if(t[ev.action]!==undefined)t[ev.action]++});return t}
 function summaryTable(m,setIndex=null){
  if(!m.roster.length)return '<p class="no-data">No players on this match roster.</p>';
@@ -727,7 +727,7 @@ let reviewMatchId=null,reviewSet=0;
 function setReview(m,i){if(!m.serviceReview)m.serviceReview={};if(!m.serviceReview[i])m.serviceReview[i]={};return m.serviceReview[i]}
 function renderServeReview(m){
  const si=Math.min(Math.max(reviewSet,0),m.sets.length-1),cfg=m.serviceReview?.[si]||{};
- const all=(m.events||[]).filter(e=>e.setIndex===si&&(e.action==='serveIn'||e.dh===1||e.da===1));
+ const all=(m.events||[]).filter(e=>e.setIndex===si&&(e.action==='serveIn'||e.dh===1||e.da===1||['dig','assist','attackAttempt'].includes(e.action)));
  const bk=m.roster.find(p=>/^bk$/i.test(p.name.trim()));
  const cover=m.roster.filter(p=>/^(teagan|corbyn)(\s|$)/i.test(p.name.trim()));
  const bkRallies=all.filter(e=>Analytics.serviceContext(m,e).side==='home'&&bk&&(e.rallyContext?.serverId===bk.id||e.rallyContext?.lineup?.[0]===bk.id||(['serveIn','ace','serveError'].includes(e.action)&&e.playerId===bk.id)));
@@ -740,18 +740,33 @@ function renderServeReview(m){
   const current=Object.prototype.hasOwnProperty.call(fix,'serverId')?(fix.serverId||'none'):'auto';
   const chosen=m.roster.find(p=>p.id===ctx.serverId);
   const server=options(current,[['auto','Recorded'+(chosen?' · #'+chosen.number:' · unknown')],['none','Unassigned'],...m.roster.map(p=>[p.id,'#'+p.number+' '+p.name])]);
+  const playerAction=['kill','attackError','ourError','block','dig','assist','attackAttempt'].includes(e.action);
+  const credited=e.statPlayerFixId??e.playerId;
+  const creditedName=m.roster.find(p=>p.id===credited)?.name||'Unassigned';
+  const playerOptions=options(Object.prototype.hasOwnProperty.call(e,'statPlayerFixId')?(e.statPlayerFixId||'none'):'auto',[['auto','Original · '+creditedName],['none','Unassigned'],...m.roster.map(p=>[p.id,'#'+p.number+' '+p.name])]);
   return '<div class="v11-review-row"><div class="v11-review-desc"><b>Rally '+(index+1)+' · '+esc(ACTIONS[e.action]?.label||e.action)+'</b><small>'+ (e.dh===1?'+1 Barons':e.da===1?'+1 opponent':'No point')+' · recorded '+esc(original)+' · now '+esc(ctx.side||'unknown')+'</small></div>'+
    '<label>Serving side<select data-serve-fix="side" data-event-id="'+esc(e.id)+'" '+(explicit?'disabled':'')+'>'+side+'</select></label>'+
-   '<label>Actual server<select data-serve-fix="server" data-event-id="'+esc(e.id)+'" '+(ctx.side!=='home'?'disabled':'')+'>'+server+'</select></label></div>';
+   '<label>Actual server<select data-serve-fix="server" data-event-id="'+esc(e.id)+'" '+(ctx.side!=='home'?'disabled':'')+'>'+server+'</select></label>'+
+   (playerAction?'<label>Player credited for play<select data-stat-player-fix data-event-id="'+esc(e.id)+'">'+playerOptions+'</select></label>':'')+'</div>';
  }).join('');
  return '<div class="v11-review"><div class="button-spread"><div><h3>Serve review · '+esc(m.opponent)+'</h3><p class="section-intro">Changes fix serving statistics, not scores or original lineup history.</p></div><button class="btn sm ghost" data-action="close-serve-review">Close</button></div>'+
  '<div class="btn-row v11-review-sets">'+setButtons+'</div><p class="v10-warning">Wrong starting server? <b>Flip set</b> only if the serving-side recording was reversed throughout that set. If you corrected it partway through, use the individual rally dropdowns instead.</p>'+
  '<div class="btn-row"><button class="btn sm '+(cfg.flip?'primary':'ghost')+'" data-action="flip-serve-set">'+(cfg.flip?'↶ Undo set flip':'⇄ Flip set serving sides')+'</button>'+
  '<button class="btn sm '+(cfg.reviewed?'primary':'ghost')+'" data-action="review-verified">'+(cfg.reviewed?'✓ Reviewed':'Mark set reviewed')+'</button>'+
  '<button class="btn sm ghost" data-action="reset-serve-set">Reset corrections</button></div>'+
- (bk&&cover.length?'<div class="v11-bk"><b>BK back-row serving cover</b><p>Teagan or Corbyn served and played back-row defense for BK. Assign the actual server to rallies logged as BK in P1. The other left-side player keeps their own stats. If they alternated within this set, change the individual rally rows instead.</p><div class="btn-row">'+cover.map(p=>'<button class="btn sm" data-action="bk-cover" data-id="'+esc(p.id)+'" '+(!bkRallies.length?'disabled':'')+'>'+esc(p.name)+' covered BK ('+bkRallies.length+')</button>').join('')+'</div></div>':'')+
+ (bk&&cover.length?'<div class="v11-bk"><b>BK back-row serving cover</b><p>Teagan or Corbyn served and played back-row defense for BK. Assign the actual server to rallies logged as BK in P1. The other left-side player keeps their own stats. If they alternated within this set, change the individual rally rows. Digs and general errors must be reassigned separately using “Player credited for play” if they were incorrectly logged to BK.</p><div class="btn-row">'+cover.map(p=>'<button class="btn sm" data-action="bk-cover" data-id="'+esc(p.id)+'" '+(!bkRallies.length?'disabled':'')+'>'+esc(p.name)+' covered BK ('+bkRallies.length+')</button>').join('')+'</div></div>':'')+
  '<div class="v11-review-list">'+(rows||'<p class="no-data">No scoring rallies recorded for this set.</p>')+'</div>'+
  '<p class="download-note">Aces and serve errors indicate the Barons served and are fixed as “We served”. “Original / set flip” means the original setting may still be wrong. Unknown players remain unassigned. Save a backup from Team before major edits; changes sync with the match data.</p></div>';
+}
+function changeStatPlayer(m,eventId,value){
+ const e=m.events.find(e=>e.id===eventId);
+ if(!e||!['kill','attackError','ourError','block','dig','assist','attackAttempt'].includes(e.action))return false;
+ if(value==='auto')delete e.statPlayerFixId;
+ else if(value==='none')e.statPlayerFixId=null;
+ else if(m.roster.some(p=>p.id===value))e.statPlayerFixId=value;
+ else return false;
+ setReview(m,e.setIndex).reviewed=false;
+ return true;
 }
 function changeServeFix(m,eventId,field,value){
  const e=m.events.find(e=>e.id===eventId);if(!e||!['side','server'].includes(field))return false;
@@ -910,6 +925,11 @@ function exportImage(){const c=$('#court');if(!c)return;try{c.toBlob(blob=>{if(!
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;state.boardFocus=false;persist();render()});
 main.addEventListener('submit',e=>{e.preventDefault();const id=e.target.id;const f=new FormData(e.target);if(id==='substitutionForm'){substitute(String(f.get('out')||''),String(f.get('in')||''));}if(id==='newMatchForm'){prefill={};const opponent=String(f.get('opponent')||'').trim();if(!opponent)return;newMatch({opponent,date:String(f.get('date')),bestOf:f.get('bestOf'),rulesProfile:String(f.get('rulesProfile')||'mhsaa')});}if(id==='teamNameForm'){const name=String(f.get('teamName')||'').trim();if(!name)return;state.teamName=name;persist();render();toast('Team name saved');}if(id==='addPlayerForm'){const number=String(f.get('number')||'').trim(),name=String(f.get('name')||'').trim();if(!number||!name)return;state.players.push({id:uid(),number,name});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast(name+' added');}});
 main.addEventListener('change',async e=>{const target=e.target;
+if(target.matches('[data-stat-player-fix]')){
+ const m=state.matches.find(x=>x.id===reviewMatchId);if(!m)return;
+ if(changeStatPlayer(m,target.dataset.eventId,target.value)){persist();render();toast('Player credit corrected');}
+ return;
+}
 if(target.matches('[data-serve-fix]')){
  const m=state.matches.find(x=>x.id===reviewMatchId);if(!m)return;
  if(changeServeFix(m,target.dataset.eventId,target.dataset.serveFix,target.value)){persist();render();toast('Serving correction saved');}
@@ -960,7 +980,7 @@ if(['flip-serve-set','reset-serve-set','review-verified','bk-cover'].includes(ac
   cfg.flip=!cfg.flip;cfg.reviewed=false;
  }else if(action==='reset-serve-set'){
   if(!confirm('Reset all serving corrections in set '+(si+1)+'?'))return;
-  for(const e of m.events.filter(e=>e.setIndex===si))delete e.serveFix;
+  for(const e of m.events.filter(e=>e.setIndex===si)){delete e.serveFix;delete e.statPlayerFixId;}
   delete m.serviceReview[si];
  }else if(action==='review-verified'){
   cfg.reviewed=!cfg.reviewed;
