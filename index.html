@@ -428,6 +428,7 @@ const Rules=globalThis.VBRules;
 const Analytics=globalThis.VBAnalytics;
 const ACTIONS = {
   kill:{label:'Kill',short:'K',detail:'+1 our point',stat:true},
+  tipPoint:{label:'Tip point',short:'TIP',detail:'+1 our point · counts as a kill',stat:true},
   ace:{label:'Ace',short:'SA',detail:'+1 our point',stat:true},
   block:{label:'Stuff block',short:'B',detail:'+1 our point',stat:true},
   dig:{label:'Dig',short:'D',detail:'Stat only',stat:true},
@@ -488,8 +489,18 @@ function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(Object.assign({
 function match(){return state.matches.find(m=>m.id===state.currentMatchId)||null}
 function selectedPlayer(m=match()){return m?.roster.find(p=>p.id===state.selectedPlayerId)||m?.roster[0]||null}
 function matchWins(m){return m.sets.reduce((r,s)=>{if(s.winner==='home')r.home++;if(s.winner==='away')r.away++;return r},{home:0,away:0})}
-function countStats(m,playerId,setIndex=null){const res={kill:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0,attackAttempt:0,ourError:0};for(const ev of m.events){const credited=['ace','serveError'].includes(ev.action)?Analytics.serviceContext(m,ev).serverId:(Object.prototype.hasOwnProperty.call(ev,'statPlayerFixId')?ev.statPlayerFixId:ev.playerId);if(credited===playerId&&(setIndex===null||setIndex===ev.setIndex)&&res[ev.action]!==undefined)res[ev.action]++}return res}
-function totals(m){const t={kill:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0};m.events.forEach(ev=>{if(t[ev.action]!==undefined)t[ev.action]++});return t}
+function countStats(m,playerId,setIndex=null){
+ const res={kill:0,tipPoint:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0,attackAttempt:0,ourError:0};
+ for(const ev of m.events){
+  const credited=['ace','serveError'].includes(ev.action)?Analytics.serviceContext(m,ev).serverId:(Object.prototype.hasOwnProperty.call(ev,'statPlayerFixId')?ev.statPlayerFixId:ev.playerId);
+  if(credited!==playerId||(setIndex!==null&&setIndex!==ev.setIndex)||res[ev.action]===undefined)continue;
+  res[ev.action]++;
+  // A winning tip is a kill, but keep its own counter for coaching.
+  if(ev.action==='tipPoint')res.kill++;
+ }
+ return res;
+}
+function totals(m){const t={kill:0,tipPoint:0,ace:0,block:0,dig:0,assist:0,serveError:0,attackError:0};m.events.forEach(ev=>{if(t[ev.action]!==undefined)t[ev.action]++;if(ev.action==='tipPoint')t.kill++});return t}
 function summaryTable(m,setIndex=null){
  if(!m.roster.length)return '<p class="no-data">No players on this match roster.</p>';
  const analysis=Analytics.analyze(m,setIndex===null?'match':'set'),servers=new Map(analysis.servers.map(x=>[x.id,x]));
@@ -498,14 +509,14 @@ function summaryTable(m,setIndex=null){
  const missing=servers.get(null),unassigned=missing?'<tr><td>Unassigned</td><td>'+missing.attempts+'</td><td>'+missing.in+'</td><td>'+missing.aces+'</td><td>'+missing.errors+'</td><td>'+missing.inRate+'%</td></tr>':'';
  const pointRows=players.map(({p,s})=>{
   const att=s.kill+s.attackError+s.attackAttempt,hit=att?((s.kill-s.attackError)/att).toFixed(3):'—';
-  return '<tr><td><b>#'+esc(p.number)+'</b> '+esc(p.name)+'</td><td>'+s.kill+'</td><td>'+s.attackError+'</td><td>'+s.ourError+'</td><td>'+att+'</td><td>'+hit+'</td><td>'+s.block+'</td><td>'+s.dig+'</td><td>'+s.assist+'</td></tr>';
+  return '<tr><td><b>#'+esc(p.number)+'</b> '+esc(p.name)+'</td><td>'+s.kill+'</td><td>'+s.tipPoint+'</td><td>'+s.attackError+'</td><td>'+s.ourError+'</td><td>'+att+'</td><td>'+hit+'</td><td>'+s.block+'</td><td>'+s.dig+'</td><td>'+s.assist+'</td></tr>';
  }).join('');
  const tab=(headers,rows)=>'<div class="table-wrap"><table class="stats-table"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
  return '<div class="v9-stats-section"><h3>Serving</h3>'+
  (serveRows||unassigned?tab(['Player','Attempts','In','Aces','Errors','In %'],serveRows+unassigned):'<p class="no-data">No serving attempts recorded in this '+(setIndex===null?'match':'set')+'. Choose “We serve” while scoring rallies or use “Serve in” to log a successful serve directly.</p>')+
  '<p class="download-note">Attempts come from logged rallies while we serve, or direct Serve in / Ace / Serve error actions. Missed historical rallies cannot be reconstructed.</p></div>'+
- '<div class="v9-stats-section"><h3>Kills & errors</h3>'+tab(['Player','Kills','Kill errors','General errors','Attacks','Hit %','Blocks','Digs','Assists'],pointRows)+
- '<p class="download-note">General errors are separate from kill and serve errors. Hitting % = (kills − attack errors) / recorded attacks.</p></div>';
+ '<div class="v9-stats-section"><h3>Kills & errors</h3>'+tab(['Player','Kills','Tips','Kill errors','General errors','Attacks','Hit %','Blocks','Digs','Assists'],pointRows)+
+ '<p class="download-note">Tips are a subset of total kills, not extra kills. General errors are separate from kill and serve errors. Hitting % = (kills − attack errors) / recorded attacks.</p></div>';
 }
 function historyServingLine(m){
  const servers=Analytics.analyze(m,'match').servers,add=k=>servers.reduce((x,v)=>x+v[k],0),att=add('attempts');
@@ -573,7 +584,7 @@ function renderLiveStatStrip(m){
  const servers=Analytics.analyze(m,'set').servers;
  const att=servers.reduce((n,s)=>n+s.attempts,0),inside=servers.reduce((n,s)=>n+s.in,0);
  const count=a=>events.filter(e=>e.action===a).length;
- const values=[['Serving in',att?inside+'/'+att:'—'],['Aces',count('ace')],['Serve errors',count('serveError')],['Kills',count('kill')],['Kill errors',count('attackError')],['General errors',count('ourError')]];
+ const values=[['Serving in',att?inside+'/'+att:'—'],['Aces',count('ace')],['Serve errors',count('serveError')],['Kills',count('kill')+count('tipPoint')],['Tips',count('tipPoint')],['Kill errors',count('attackError')],['General errors',count('ourError')]];
  return '<div class="v8-statstrip" aria-label="This set team statistics">'+values.map(([label,value])=>'<div class="v8-statitem"><span>'+label+'</span><b>'+value+'</b></div>').join('')+'</div>';
 }
 function renderMatch(){
@@ -584,8 +595,8 @@ function renderMatch(){
  const ourRoster=m.lineup.slots.filter(Boolean),bench=m.roster.filter(p=>!ourRoster.includes(p.id));
  const showing=state.scorerShowBench?m.roster:ourRoster.map(id=>playerById(m,id)).filter(Boolean);
  const activeSide=state.scorerSide,activeCause=state.scorerCause;
- const choices=activeSide==='home'?[['kill','Kill',true],['ace','Ace',true],['block','Block +1',true],['oppError','Their error',false]]:[['serveError','Serve error',true],['attackError','Attack error',true],['oppKill','Their kill',false],['oppAce','Their ace',false],['ourError','General error',true]];
- const needsPlayer=activeCause&&['kill','ace','block','serveError','attackError','ourError','attackAttempt','dig','assist'].includes(activeCause);
+ const choices=activeSide==='home'?[['kill','Kill',true],['tipPoint','Tip point',true],['ace','Ace',true],['block','Block +1',true],['oppError','Their error',false]]:[['serveError','Serve error',true],['attackError','Attack error',true],['oppKill','Their kill',false],['oppAce','Their ace',false],['ourError','General error',true]];
+ const needsPlayer=activeCause&&['kill','tipPoint','ace','block','serveError','attackError','ourError','attackAttempt','dig','assist'].includes(activeCause);
  const courtButtons=(action)=>showing.map(p=>`<button class="v6-athlete" data-action="scorer-player" data-id="${esc(p.id)}" data-cause="${esc(action)}" ${!live?'disabled':''}><strong>#${esc(p.number)}</strong><span>${esc(p.name)}</span></button>`).join('');
  const countdown=streakInfo(m),lastPoint=[...m.events].reverse().find(e=>e.dh===1||e.da===1);
  const timeoutCounts={home:m.events.filter(e=>e.action==='timeout'&&e.setIndex===num-1&&e.side==='home').length,away:m.events.filter(e=>e.action==='timeout'&&e.setIndex===num-1&&e.side==='away').length};
@@ -615,7 +626,7 @@ function renderMatch(){
 }
 function streakInfo(m){let side=null,count=0;const setIndex=m.sets.length-1;for(let i=m.events.length-1;i>=0;i--){const e=m.events[i];if(e.setIndex!==setIndex)break;if(!(e.dh===1||e.da===1))continue;const next=e.dh===1?'home':'away';if(side!==null&&side!==next)break;side=next;count++;}return {side,count};}
 function scorerSide(side){state.scorerSide=state.scorerSide===side?null:side;state.scorerCause=null;state.statkeeperAction=null;render();}
-function scorerCause(action){const m=match();if(!m||m.status!=='live')return;const needing=['kill','ace','block','serveError','attackError','ourError'].includes(action);if(!needing){resetScorer();record(action);return;}state.scorerCause=action;render();}
+function scorerCause(action){const m=match();if(!m||m.status!=='live')return;const needing=['kill','tipPoint','ace','block','serveError','attackError','ourError'].includes(action);if(!needing){resetScorer();record(action);return;}state.scorerCause=action;render();}
 function resetScorer(){state.scorerSide=null;state.scorerCause=null;state.statkeeperAction=null;state.scorerShowBench=false;persist();}
 function scorerPlayer(action,id){const m=match();if(!m||m.status!=='live'||!ACTIONS[action])return;if(id&&!m.roster.some(p=>p.id===id))return;if(!id&&['serveIn','attackAttempt','dig','assist'].includes(action)){toast('Choose a player for a stat-only action.');return;}resetScorer();record(action,id||null);}
 function recordTimeout(side){const m=match();if(!m||m.status!=='live'||!['home','away'].includes(side))return;const s=m.sets.at(-1);const already=m.events.filter(ev=>ev.setIndex===m.sets.length-1&&ev.action==='timeout'&&ev.side===side).length;snapshotMatch(m);m.events.push({id:uid(),time:new Date().toISOString(),setIndex:m.sets.length-1,action:'timeout',side,score:{home:s.home,away:s.away},dh:0,da:0});persist();render();toast((side==='home'?'Our':'Opponent')+' timeout at '+s.home+'–'+s.away+(already>=2?' · check local timeout limits':''));}
@@ -682,7 +693,7 @@ function totalsAcrossMatches(){
  const rows=new Map(),matches=state.matches.filter(m=>!m.excludeFromTotals);
  const get=p=>{
   const key=(p.name||'').trim().toLocaleLowerCase().replace(/\s+/g,' ')||'number:'+String(p.number);
-  if(!rows.has(key))rows.set(key,{name:p.name,number:p.number,kill:0,attackError:0,ourError:0,block:0,dig:0,assist:0,attackAttempt:0,ace:0,serveError:0,serveAttempts:0,serveIn:0,rostered:0});
+  if(!rows.has(key))rows.set(key,{name:p.name,number:p.number,kill:0,tipPoint:0,attackError:0,ourError:0,block:0,dig:0,assist:0,attackAttempt:0,ace:0,serveError:0,serveAttempts:0,serveIn:0,rostered:0});
   return rows.get(key);
  };
  let unreviewed=0,unassigned=0;
@@ -690,7 +701,7 @@ function totalsAcrossMatches(){
   const byId=new Map();
   for(const p of m.roster||[]){
    const result=get(p),part=countStats(m,p.id);byId.set(p.id,result);result.rostered++;
-   for(const k of ['kill','attackError','ourError','block','dig','assist','attackAttempt'])result[k]+=part[k];
+   for(const k of ['kill','tipPoint','attackError','ourError','block','dig','assist','attackAttempt'])result[k]+=part[k];
   }
   for(const serve of Analytics.analyze(m,'match').servers){
    const p=byId.get(serve.id);if(!p){unassigned+=serve.attempts;continue;}
@@ -707,18 +718,18 @@ function renderSeasonTotals(){
  const table=(heads,rows)=>'<div class="table-wrap"><table class="stats-table"><thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
  const name=x=>'<b>'+esc(x.number!=='–'?'#'+x.number+' ':'')+'</b>'+esc(x.name);
  const serve=table(['Player','Attempts','In','In %','Aces','Serve err'],p.map(x=>'<tr><td>'+name(x)+'</td><td>'+x.serveAttempts+'</td><td>'+x.serveIn+'</td><td>'+rate(x.serveIn,x.serveAttempts)+'</td><td>'+x.ace+'</td><td>'+x.serveError+'</td></tr>').join(''));
- const attack=table(['Player','Kills','Kill err','General err','Attacks','Hit %','Blocks','Digs','Ast'],p.map(x=>{
+ const attack=table(['Player','Kills','Tips','Kill err','General err','Attacks','Hit %','Blocks','Digs','Ast'],p.map(x=>{
   const n=x.kill+x.attackError+x.attackAttempt;
-  return '<tr><td>'+name(x)+'</td><td>'+x.kill+'</td><td>'+x.attackError+'</td><td>'+x.ourError+'</td><td>'+n+'</td><td>'+(n?((x.kill-x.attackError)/n).toFixed(3):'—')+'</td><td>'+x.block+'</td><td>'+x.dig+'</td><td>'+x.assist+'</td></tr>';
+  return '<tr><td>'+name(x)+'</td><td>'+x.kill+'</td><td>'+x.tipPoint+'</td><td>'+x.attackError+'</td><td>'+x.ourError+'</td><td>'+n+'</td><td>'+(n?((x.kill-x.attackError)/n).toFixed(3):'—')+'</td><td>'+x.block+'</td><td>'+x.dig+'</td><td>'+x.assist+'</td></tr>';
  }).join(''));
  return '<section class="panel v10-season"><div class="button-spread"><div><h2>All-match player totals</h2><p class="section-intro">'+t.matches.length+' included matches · players combined by recorded name</p></div><button class="btn sm blue" data-action="export-season">↓ Totals CSV</button></div>'+
  '<p class="v10-warning">'+(t.unreviewed?'<b>'+t.unreviewed+' sets awaiting serving review.</b> ':'All included sets marked reviewed. ')+'These serving totals may be inaccurate when the starting serving team or BK back-row replacement was entered incorrectly.'+(t.unassigned?' '+t.unassigned+' attempts remain unassigned.':'')+'</p>'+
  '<div class="v10-season-tables"><div><h3>Serving</h3>'+serve+'</div><div><h3>Kills & errors</h3>'+attack+'</div></div>'+
- '<p class="download-note">Includes scored matches from History only, not Tourney-only results. Exclude test matches using the buttons below. BK stays credited for his own kills; serving may belong to Teagan or Corbyn. Missing serves and unlogged touches cannot be reconstructed.</p></section>';
+ '<p class="download-note">Tip points are included in kills and also shown separately; never add tips to kills again. Includes scored matches from History only, not Tourney-only results. Exclude test matches using the buttons below. BK stays credited for his own kills; serving may belong to Teagan or Corbyn. Missing serves and unlogged touches cannot be reconstructed.</p></section>';
 }
 function exportSeasonTotals(){
- const t=totalsAcrossMatches(),rows=[['Player','Jersey','Matches on roster','Kills','Kill errors','General errors','Attack attempts','Blocks','Digs','Assists','Serve attempts','Serves in','Aces','Serve errors','Serving %']];
- t.players.forEach(x=>rows.push([x.name,x.number,x.rostered,x.kill,x.attackError,x.ourError,x.kill+x.attackError+x.attackAttempt,x.block,x.dig,x.assist,x.serveAttempts,x.serveIn,x.ace,x.serveError,x.serveAttempts?(100*x.serveIn/x.serveAttempts).toFixed(1)+'%':'']));
+ const t=totalsAcrossMatches(),rows=[['Player','Jersey','Matches on roster','Kills (including tips)','Tip points','Kill errors','General errors','Attack attempts','Blocks','Digs','Assists','Serve attempts','Serves in','Aces','Serve errors','Serving %']];
+ t.players.forEach(x=>rows.push([x.name,x.number,x.rostered,x.kill,x.tipPoint,x.attackError,x.ourError,x.kill+x.attackError+x.attackAttempt,x.block,x.dig,x.assist,x.serveAttempts,x.serveIn,x.ace,x.serveError,x.serveAttempts?(100*x.serveIn/x.serveAttempts).toFixed(1)+'%':'']));
  const csv=rows.map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
  download('\ufeff'+csv,'barons-all-match-stats-'+dateLocal()+'.csv','text/csv;charset=utf-8');toast('All-match player stats exported');
 }
@@ -740,7 +751,7 @@ function renderServeReview(m){
   const current=Object.prototype.hasOwnProperty.call(fix,'serverId')?(fix.serverId||'none'):'auto';
   const chosen=m.roster.find(p=>p.id===ctx.serverId);
   const server=options(current,[['auto','Recorded'+(chosen?' · #'+chosen.number:' · unknown')],['none','Unassigned'],...m.roster.map(p=>[p.id,'#'+p.number+' '+p.name])]);
-  const playerAction=['kill','attackError','ourError','block','dig','assist','attackAttempt'].includes(e.action);
+  const playerAction=['kill','tipPoint','attackError','ourError','block','dig','assist','attackAttempt'].includes(e.action);
   const hasServeContext=e.action==='serveIn'||e.dh===1||e.da===1;
   const credited=e.statPlayerFixId??e.playerId;
   const creditedName=m.roster.find(p=>p.id===credited)?.name||'Unassigned';
@@ -761,7 +772,7 @@ function renderServeReview(m){
 }
 function changeStatPlayer(m,eventId,value){
  const e=m.events.find(e=>e.id===eventId);
- if(!e||!['kill','attackError','ourError','block','dig','assist','attackAttempt'].includes(e.action))return false;
+ if(!e||!['kill','tipPoint','attackError','ourError','block','dig','assist','attackAttempt'].includes(e.action))return false;
  if(value==='auto')delete e.statPlayerFixId;
  else if(value==='none')e.statPlayerFixId=null;
  else if(m.roster.some(p=>p.id===value))e.statPlayerFixId=value;
@@ -863,7 +874,7 @@ function renderBoard(){
 function newMatch(data){const slots=normalizeSlots(state.defaultLineup,state.players);const m={id:uid(),teamName:state.teamName||'My Team',opponent:data.opponent.trim(),date:data.date,bestOf:Number(data.bestOf),roster:clone(state.players),sets:[{home:0,away:0,winner:null,startingLineup:slots.slice()}],events:[],status:'live',startingLineup:slots.slice(),lineup:{slots:slots.slice(),serving:null,autoRotate:true,rotationCount:0},lineupEvents:[],gameDay:{passers:[],pendingServeZone:null},rulesProfile:Rules.PROFILES[data.rulesProfile]?data.rulesProfile:'mhsaa'};Rules.ensure(m);state.matches.push(m);state.currentMatchId=m.id;state.selectedPlayerId=m.lineup.slots.find(Boolean)||m.roster[0]?.id||null;state.matchUndo=[];resetScorer();persist();render();toast('Match started — choose the first server on Lineup!')}
 function record(action,playerId=null){const m=match();if(!m||m.status!=='live')return;const s=m.sets.at(-1);
 if(action==='serveIn'&&m.lineup.serving==='away'){toast('Choose “We serve” before recording a serve.');return}
-if(action==='serveIn'&&!playerId){toast('Choose the server first.');return}if(m.regulation?.liberos?.includes(playerId)&&['ace','block'].includes(action)){toast('A designated libero cannot serve or block.');return;}let dh=0,da=0;if(['kill','ace','block','ourPoint','oppError'].includes(action))dh=1;if(['serveError','attackError','theirPoint','oppKill','oppAce','ourError'].includes(action))da=1;if(action==='homeMinus'&&s.home>0)dh=-1;if(action==='awayMinus'&&s.away>0)da=-1;if(['homeMinus','awayMinus'].includes(action)&&dh===0&&da===0)return;
+if(action==='serveIn'&&!playerId){toast('Choose the server first.');return}if(m.regulation?.liberos?.includes(playerId)&&['ace','block'].includes(action)){toast('A designated libero cannot serve or block.');return;}let dh=0,da=0;if(['kill','tipPoint','ace','block','ourPoint','oppError'].includes(action))dh=1;if(['serveError','attackError','theirPoint','oppKill','oppAce','ourError'].includes(action))da=1;if(action==='homeMinus'&&s.home>0)dh=-1;if(action==='awayMinus'&&s.away>0)da=-1;if(['homeMinus','awayMinus'].includes(action)&&dh===0&&da===0)return;
 snapshotMatch(m);
  if(['serveIn','ace','serveError'].includes(action)&&m.lineup.serving!=='home')m.lineup.serving='home';
 const context=(dh>0||da>0||action==='serveIn')?{rotation:m.lineup.rotationCount,serving:m.lineup.serving,serverId:action==='serveIn'?playerId:m.lineup.serving==='home'?m.lineup.slots[0]||null:null,lineup:m.lineup.slots.slice()}:null;
@@ -877,7 +888,7 @@ persist();render();toast(message);}
 function undoMatch(){const m=match();if(!m||!state.matchUndo.length)return;let last=state.matchUndo.pop();if(last.id!==m.id){state.matchUndo=[];toast('Undo history belongs to another match.');return}let idx=state.matches.findIndex(x=>x.id===m.id);state.matches[idx]=last.snapshot;persist();render();toast('Last action undone')}
 function finishMatch(){const m=match();if(!m)return;if(!confirm('End this match now? The match will remain in History.'))return;m.status='finished';state.matchUndo=[];persist();render();toast('Match saved to History');}
 function download(content,filename,mime){const blob=new Blob([content],{type:mime});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
-function exportCsv(m){if(!m)return;const byServer=new Map(Analytics.analyze(m,'match').servers.map(s=>[s.id,s]));const rows=[['Match','Date','Team','Opponent','Jersey','Player','Kills','Attack attempts','Hitting pct','Aces','Blocks','Digs','Assists','Attack errors','Serve errors','General errors','Serve attempts','Serves in','Serve in pct','Service points won']];m.roster.forEach(p=>{const s=countStats(m,p.id),v=byServer.get(p.id),a=s.kill+s.attackError+s.attackAttempt;rows.push([m.id,m.date,m.teamName,m.opponent,p.number,p.name,s.kill,a,a?((s.kill-s.attackError)/a).toFixed(3):'',s.ace,s.block,s.dig,s.assist,s.attackError,s.serveError,s.ourError,v?.attempts||0,v?.in||0,v?.attempts?v.inRate+'%':'',v?.pointsWon||0])});const csv=rows.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');download('\ufeff'+csv,('volleyboard-'+(m.opponent||'match').replace(/[^a-z0-9-]/ig,'-')+'-'+m.date+'.csv'),'text/csv;charset=utf-8');toast('CSV exported')}
+function exportCsv(m){if(!m)return;const byServer=new Map(Analytics.analyze(m,'match').servers.map(s=>[s.id,s]));const rows=[['Match','Date','Team','Opponent','Jersey','Player','Kills (including tips)','Tip points','Attack attempts','Hitting pct','Aces','Blocks','Digs','Assists','Attack errors','Serve errors','General errors','Serve attempts','Serves in','Serve in pct','Service points won']];m.roster.forEach(p=>{const s=countStats(m,p.id),v=byServer.get(p.id),a=s.kill+s.attackError+s.attackAttempt;rows.push([m.id,m.date,m.teamName,m.opponent,p.number,p.name,s.kill,s.tipPoint,a,a?((s.kill-s.attackError)/a).toFixed(3):'',s.ace,s.block,s.dig,s.assist,s.attackError,s.serveError,s.ourError,v?.attempts||0,v?.in||0,v?.attempts?v.inRate+'%':'',v?.pointsWon||0])});const csv=rows.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');download('\ufeff'+csv,('volleyboard-'+(m.opponent||'match').replace(/[^a-z0-9-]/ig,'-')+'-'+m.date+'.csv'),'text/csv;charset=utf-8');toast('CSV exported')}
 // ---- Whiteboard drawing / touch interactions ----
 let canvas=null,ctx=null,pointerState=null;
 function boardSnapshot(){state.boardUndo.push(clone(state.board));if(state.boardUndo.length>40)state.boardUndo.shift()}
