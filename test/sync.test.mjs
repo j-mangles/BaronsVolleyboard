@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createSync } from '../sync-core.js';
+import { createSync, revision } from '../sync-core.js';
 
 const tick = () => new Promise(r => setTimeout(r, 5));
 function cloud() {
@@ -10,8 +10,17 @@ function cloud() {
     listen(kind, cb) { const s = { dev, kind, cb }; c.subs.push(s); setTimeout(() => cb([...c[kind]], []), 1); return () => c.subs.splice(c.subs.indexOf(s), 1); },
     async commit(ops) {
       if (dev.deny) throw Object.assign(new Error('denied'), { code: 'permission-denied' });
-      if (!dev.online) { dev.queue.push(...ops); return; }
-      apply(ops, dev);
+      if (!dev.online) throw Error('Cannot acknowledge offline writes');
+      if (dev.hold) await dev.hold;
+      const accepted = [], conflicts = [];
+      for (const o of ops) {
+        const before = o.path === 'team' ? c.team : c[o.path].get(o.id) ?? null;
+        if (before === o.json) continue;
+        if (revision(before) !== o.base) conflicts.push([o.path === 'team' ? 'team' : o.path + '/' + o.id, before]);
+        else accepted.push(o);
+      }
+      apply(accepted, dev);
+      return conflicts;
     }
   });
   function apply(ops, dev) {
@@ -23,7 +32,7 @@ function cloud() {
     }
     for (const [k, ch] of Object.entries(byKind)) for (const s of c.subs) if (s.kind === k && s.dev !== dev) s.cb([...c[k]], ch);
   }
-  c.reconnect = dev => { dev.online = true; const q = dev.queue.splice(0); apply(q, dev); };
+  c.reconnect = dev => { dev.online = true; return dev.sync.flushNow(); };
   return c;
 }
 function device(c, state, storage = new Map()) {
@@ -31,7 +40,7 @@ function device(c, state, storage = new Map()) {
   dev.state = state;
   const st = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) };
   dev.storage = storage;
-  dev.sync = createSync({ backend: c.backend(dev), bridge: { get state() { return dev.state; }, applied: () => dev.applied++ }, storage: st, onStatus: s => dev.statuses.push(s), debounceMs: 1 });
+  dev.sync = createSync({ backend: c.backend(dev), bridge: { get state() { return dev.state; }, applied: () => dev.applied++ }, storage: st, onStatus: (s, err, info) => { dev.statuses.push(s); dev.info = info; }, debounceMs: 1 });
   return dev;
 }
 const fresh = (extra = {}) => ({ teamName: 'Barons', players: [{ id: 'p1', name: 'A' }], defaultLineup: ['p1'], matches: [], plays: [], currentMatchId: null, matchUndo: [], ...extra });
@@ -90,4 +99,59 @@ assert.equal(JSON.parse(c.team).teamName, 'Barons Varsity', 'failed write retrie
 const before = c.matches.get('m1');
 let writes = 0; const orig = A.sync; A.sync.changed(); await tick(); await A.sync.flushNow();
 assert.equal(c.matches.get('m1'), before);
+// 9. Close before the upload timer fires, reopen, and recover the exact match.
+const matchId = 'test-match';
+const first = {id:'first', dh:1, da:0}, second = {id:'second', dh:0, da:1};
+const t = cloud(), score = device(t, fresh({matches:[{id:matchId, events:[first]}]}));
+score.sync.start(); await tick(); await tick();
+score.state.matches[0].events.push(second); score.sync.changed();
+assert.equal(score.info.rallies, 1);
+score.sync.stop();
+assert.equal(JSON.parse(t.matches.get(matchId)).events.length, 1);
+const reopened = device(t, structuredClone(score.state), score.storage);
+reopened.sync.start(); await tick(); await tick();
+assert.deepEqual(JSON.parse(t.matches.get(matchId)).events,[first,second]);
+assert.equal(reopened.statuses.at(-1),'synced');
+
+// 10. A rally entered before any server snapshot exists is durable as well.
+reopened.sync.stop();
+const opening = device(t, structuredClone(reopened.state), reopened.storage);
+opening.sync.start();
+opening.state.matches[0].events.push({id:'third', dh:1, da:0}); opening.sync.changed();
+await tick(); await tick();
+assert.equal(JSON.parse(t.matches.get(matchId)).events.length,3);
+
+// 11. Locally queued changes and in-flight changes only clear after the server
+// responds. Edits made while an earlier commit is pending must upload afterwards.
+let release; opening.hold = new Promise(resolve => {release=resolve;});
+opening.state.matches[0].note = 'first'; opening.sync.changed(); await tick();
+assert.equal(opening.statuses.at(-1),'syncing');
+opening.state.matches[0].note = 'second'; opening.sync.changed(); await tick();
+assert.notEqual(opening.statuses.at(-1),'synced');
+release(); await tick(); await tick(); delete opening.hold;
+assert.equal(JSON.parse(t.matches.get(matchId)).note,'second');
+assert.equal(opening.statuses.at(-1),'synced');
+
+// 12. Two devices change the same record. Keep both versions visible for a
+// decision and continue syncing unrelated matches while that decision is pending.
+const reader = device(t, fresh()); reader.sync.start(); await tick(); await tick();
+opening.online = false;
+opening.state.matches[0].note = 'courtside correction'; opening.sync.changed();
+await edit(reader, s => { s.matches[0].note = 'desk correction'; });
+await t.reconnect(opening); await tick();
+assert.equal(opening.statuses.at(-1),'conflict');
+const conflict = opening.sync.getConflicts()[0];
+assert.equal(JSON.parse(conflict.team).note,'desk correction');
+assert.equal(JSON.parse(conflict.device).note,'courtside correction');
+await edit(opening, s=>{s.plays.push({id:'safe-play', name:'Safe play'});});
+assert.ok(t.plays.has('safe-play'));
+opening.sync.resolve(conflict.key,'device'); await tick(); await tick();
+assert.equal(JSON.parse(t.matches.get(matchId)).note,'courtside correction');
+assert.equal(reader.state.matches[0].note,'courtside correction');
+
+// 13. The app saved edits while the SDK was unavailable and no engine existed.
+// Its last confirmed revision still distinguishes the newer on-device data.
+opening.sync.stop(); opening.state.matches[0].note='saved while SDK unavailable';
+const later = device(t, opening.state, opening.storage); later.sync.start(); await tick(); await tick();
+assert.equal(JSON.parse(t.matches.get(matchId)).note,'saved while SDK unavailable');
 console.log('sync tests passed');

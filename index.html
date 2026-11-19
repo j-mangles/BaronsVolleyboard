@@ -235,10 +235,15 @@ const profile=m=>PROFILES[m.rulesProfile]||PROFILES.practice;
 const hasStarted=m=>m.events.some(e=>e.setIndex===m.sets.length-1);
 function buildReg(m,previous=null){
  const slots=m.lineup.slots;
- const reg={setIndex:m.sets.length-1,slotKeys:[0,1,2,3,4,5],assigned:{},starters:{},subs:0,starterExits:{},starterReentries:{},entries:{},pairs:{},liberos:previous?.liberos?.slice(0,profile(m).maxLiberos)||[],autoLiberoFor:previous?.autoLiberoFor||null,liberoActive:null,replacedId:null,replacedKey:null,lastLiberoRally:-1,rally:0};
+ const reg={setIndex:m.sets.length-1,slotKeys:[0,1,2,3,4,5],assigned:{},starters:{},subs:0,starterExits:{},starterReentries:{},entries:{},pairs:{},liberos:previous?.liberos?.slice(0,profile(m).maxLiberos)||[],autoCoverage:[],liberoActive:null,replacedId:null,replacedKey:null,lastLiberoRally:-1,rally:0};
  for(let i=0;i<6;i++){if(slots[i]){reg.assigned[slots[i]]=i;reg.starters[i]=slots[i];}}
- reg.liberos=reg.liberos.filter(id=>m.roster.some(p=>p.id===id)&&!slots.includes(id));if(!slots.includes(reg.autoLiberoFor)||reg.liberos.includes(reg.autoLiberoFor))reg.autoLiberoFor=null;
+ reg.liberos=reg.liberos.filter(id=>m.roster.some(p=>p.id===id)&&!slots.includes(id));
+ reg.autoCoverage=coverageOf(previous).filter(pair=>slots.includes(pair.middle)&&reg.liberos.includes(pair.libero));
  return reg;
+}
+function coverageOf(r){
+ if(Array.isArray(r?.autoCoverage))return r.autoCoverage;
+ return r?.autoLiberoFor&&r.liberos?.[0]?[{middle:r.autoLiberoFor,libero:r.liberos[0]}]:[];
 }
 function ensure(m){
  if(!PROFILES[m.rulesProfile])m.rulesProfile='practice'; // Historic v1/v2 matches remain flexible rather than retroactively restricted.
@@ -249,7 +254,7 @@ function ensure(m){
  return r;
 }
 function rebaseBeforeSet(m){const r=ensure(m);if(hasStarted(m)||r.subs||r.liberoActive)return false;
- const keep=r.liberos.slice();m.regulation=buildReg(m,{liberos:keep});return true;}
+ m.regulation=buildReg(m,r);return true;}
 function canSub(m,outId,inId){
  const r=ensure(m), cfg=profile(m), index=m.lineup.slots.indexOf(outId);
  if(index<0)return 'Choose a player currently on court.';
@@ -280,13 +285,40 @@ function doSub(m,outId,inId){const reason=canSub(m,outId,inId);if(reason)return 
  r.subs++;m.lineup.slots[i]=inId;
  return {ok:true,position:i+1,slotKey:key};
 }
-function configureLiberos(m,ids){const r=ensure(m);if(hasStarted(m)||r.subs||r.liberoActive)return {ok:false,reason:'Set liberos before the first rally or substitution of this set.'};
- const selected=(ids||[]).filter(Boolean);
- if(new Set(selected).size!==selected.length)return {ok:false,reason:'Choose different players for each libero.'};
- if(selected.length>profile(m).maxLiberos)return {ok:false,reason:'Too many liberos for this rule profile.'};
- if(selected.some(id=>!m.roster.some(p=>p.id===id)||m.lineup.slots.includes(id)))return {ok:false,reason:'A designated libero must be an available bench player.'};
- r.liberos=selected;if(selected.includes(r.autoLiberoFor))r.autoLiberoFor=null;return {ok:true};}
-function configureAutoLibero(m,id){const r=ensure(m);if(hasStarted(m)||r.subs||r.liberoActive)return {ok:false,reason:'Set automatic libero coverage before the first rally or substitution of this set.'};if(id&&!r.liberos.length)return {ok:false,reason:'Designate a libero first.'};if(id&&(!m.lineup.slots.includes(id)||r.liberos.includes(id)))return {ok:false,reason:'Choose a starting player to be covered by the libero.'};r.autoLiberoFor=id||null;return {ok:true};}
+function setCoverage(m,liberos,pairs){
+ const r=ensure(m);
+ const same=liberos.length===r.liberos.length&&liberos.every((id,i)=>id===r.liberos[i]);
+ if(!same&&(hasStarted(m)||r.subs||r.liberoActive))return 'Libero designations are locked for this set.';
+ if(liberos.length>profile(m).maxLiberos||new Set(liberos).size!==liberos.length)return 'Choose different liberos within the match limit.';
+ if(liberos.some(id=>!m.roster.some(p=>p.id===id)||(m.lineup.slots.includes(id)&&r.liberoActive!==id)))return 'Choose a bench player as libero.';
+ if(pairs.length>2||new Set(pairs.map(p=>p.middle)).size!==pairs.length)return 'Choose a different player for each middle.';
+ if(pairs.some(p=>!liberos.includes(p.libero)||liberos.includes(p.middle)||(!m.lineup.slots.includes(p.middle)&&p.middle!==r.replacedId&&!coverageOf(r).some(old=>old.middle===p.middle))))return 'Select a middle and a designated libero for each assignment.';
+ if(r.liberoActive&&r.autoLiberoFor===r.replacedId)r.autoManaged=true;
+ delete r.autoLiberoFor;
+ r.liberos=liberos.slice();r.autoCoverage=pairs.map(({middle,libero})=>({middle,libero}));
+ return null;
+}
+function autoReplace(m){
+ const r=ensure(m),slots=m.lineup.slots;
+ if(r.liberoActive){
+  const pos=slots.indexOf(r.liberoActive)+1;
+  const ineligible=![1,5,6].includes(pos)||(pos===1&&m.lineup.serving==='home');
+  const assigned=coverageOf(r).some(p=>p.middle===r.replacedId&&p.libero===r.liberoActive);
+  if(ineligible||((r.autoManaged||r.autoLiberoFor===r.replacedId)&&!assigned&&r.lastLiberoRally!==r.rally)){
+   const out=liberoOut(m,true);
+   return out.ok?{type:'liberoOut',...out}:null;
+  }
+  return null;
+ }
+ if(!m.lineup.serving||r.lastLiberoRally===r.rally)return null;
+ for(const {middle,libero} of coverageOf(r)){
+  const position=slots.indexOf(middle)+1;
+  if(canLiberoIn(m,libero,position))continue;
+  const change=liberoIn(m,libero,position);
+  if(change.ok){r.autoManaged=true;return {type:'liberoIn',...change,inId:libero,automatic:true};}
+ }
+ return null;
+}
 function canLiberoIn(m,id,position){const r=ensure(m);if(!r.liberos.includes(id))return 'Designate this player as a libero before the set starts.';
  if(![1,5,6].includes(position))return 'Liberos may replace back-row players only (P1, P5 or P6).';
  if(m.lineup.serving==='home'&&position===1)return 'The libero cannot enter the serving position while we serve.';
@@ -296,23 +328,23 @@ function canLiberoIn(m,id,position){const r=ensure(m);if(!r.liberos.includes(id)
  if(r.liberos.includes(out))return 'The libero is already on court.';
  return null;}
 function liberoIn(m,id,position){const reason=canLiberoIn(m,id,position);if(reason)return {ok:false,reason};const r=ensure(m),i=position-1;
- r.replacedId=m.lineup.slots[i];r.replacedKey=r.slotKeys[i];r.liberoActive=id;r.lastLiberoRally=r.rally;m.lineup.slots[i]=id;return {ok:true,outId:r.replacedId,position};}
+ r.autoManaged=false;r.replacedId=m.lineup.slots[i];r.replacedKey=r.slotKeys[i];r.liberoActive=id;r.lastLiberoRally=r.rally;m.lineup.slots[i]=id;return {ok:true,outId:r.replacedId,position};}
 function liberoOut(m,automatic=false){const r=ensure(m);if(!r.liberoActive)return {ok:false,reason:'No libero on court.'};
  if(!automatic&&r.lastLiberoRally===r.rally)return {ok:false,reason:'Complete a rally between libero replacements.'};
  const i=m.lineup.slots.indexOf(r.liberoActive);
  if(i<0)return {ok:false,reason:'The libero is not in the rotation.'};
  const result={ok:true,outId:r.liberoActive,inId:r.replacedId,position:i+1,automatic};m.lineup.slots[i]=r.replacedId;
- r.liberoActive=null;r.replacedId=null;r.replacedKey=null;r.lastLiberoRally=r.rally;return result;
+ r.autoManaged=false;r.liberoActive=null;r.replacedId=null;r.replacedKey=null;r.lastLiberoRally=r.rally;return result;
 }
 function liberoSwitch(m,id){const r=ensure(m);if(!r.liberoActive)return {ok:false,reason:'There is no acting libero to switch.'};
  if(!r.liberos.includes(id)||id===r.liberoActive)return {ok:false,reason:'Choose the other designated libero.'};
  if(r.lastLiberoRally===r.rally)return {ok:false,reason:'Complete a rally between libero replacements.'};
  const old=r.liberoActive,idx=m.lineup.slots.indexOf(old);if(idx<0)return {ok:false,reason:'Acting libero is not on court.'};
- m.lineup.slots[idx]=id;r.liberoActive=id;r.lastLiberoRally=r.rally;return {ok:true,outId:old,inId:id,position:idx+1};
+ m.lineup.slots[idx]=id;r.liberoActive=id;r.autoManaged=false;r.lastLiberoRally=r.rally;return {ok:true,outId:old,inId:id,position:idx+1};
 }
 function rotate(m,direction=1){const r=ensure(m);let autoOut=null;
  if(r.liberoActive){let idx=m.lineup.slots.indexOf(r.liberoActive),pos=idx+1;
-  if((direction===1&&pos===5)||(direction===-1&&pos===4))autoOut=liberoOut(m,true);
+  if((direction===1&&pos===5)||(direction===-1&&pos===1))autoOut=liberoOut(m,true);
  }
  const rotateOne=arr=>direction===1?[...arr.slice(1),arr[0]]:[arr[5],...arr.slice(0,5)];
  m.lineup.slots=rotateOne(m.lineup.slots);r.slotKeys=rotateOne(r.slotKeys);
@@ -320,10 +352,11 @@ function rotate(m,direction=1){const r=ensure(m);let autoOut=null;
 }
 function rally(m){ensure(m).rally++;}
 function newSet(m){const r=ensure(m);m.regulation=buildReg(m,r);return m.regulation;}
-return {PROFILES,profile,hasStarted,ensure,rebaseBeforeSet,canSub,doSub,configureLiberos,configureAutoLibero,canLiberoIn,liberoIn,liberoOut,liberoSwitch,rotate,rally,newSet};
+return {PROFILES,profile,hasStarted,ensure,rebaseBeforeSet,canSub,doSub,coverageOf,setCoverage,autoReplace,canLiberoIn,liberoIn,liberoOut,liberoSwitch,rotate,rally,newSet};
 });
 
 </script>
+<script src="serve-review.js"></script>
 <script>
 /* VolleyBoard Game Day analytics: observable rally and reception measurements only. */
 (function(root,make){const api=make();if(typeof module==='object'&&module.exports)module.exports=api;root.VBAnalytics=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
@@ -332,16 +365,7 @@ const isPoint=e=>e&&(e.dh===1&&e.da===0||e.da===1&&e.dh===0);
 const rotationNumber=n=>((Math.trunc(Number(n)||0)%6+6)%6)+1;
 const groupKey=ids=>[...new Set((ids||[]).filter(Boolean))].sort().join('|');
 const rate=(a,b)=>b?Math.round(100*a/b):null;
- // Historical serving edits overlay the event; original score and rally are untouched.
- function serviceContext(m,ev){
-  const raw=ev.rallyContext?.serving||null,fix=ev.serveFix||{};
-  const explicit=['ace','serveError','serveIn'].includes(ev.action);
-  const flip=Boolean(m.serviceReview?.[ev.setIndex]?.flip);
-  const side=explicit?'home':(fix.side||((flip&&raw==='home')?'away':(flip&&raw==='away')?'home':raw));
-  const original=explicit&&ev.playerId?ev.playerId:(raw==='home'?ev.rallyContext?.serverId:null);
-  const serverId=side==='home'&&Object.prototype.hasOwnProperty.call(fix,'serverId')?fix.serverId:(side==='home'?original:null);
-  return {side,serverId:serverId||null};
- }
+const serviceContext=globalThis.VBServeReview.context;
 function analyze(m,scope='set'){
  const setIndex=(m.sets||[]).length-1;
  const inScope=e=>scope!=='set'||e.setIndex===setIndex;
@@ -351,7 +375,7 @@ function analyze(m,scope='set'){
  const rotations=Array.from({length:6},(_,i)=>({number:i+1,won:0,lost:0,total:0,sideoutWon:0,sideoutTotal:0,breakWon:0,breakTotal:0}));
  let unknownService=0,knownService=0;
  for(const ev of tracked){
-  const r=rotations[rotationNumber(ev.rallyContext.rotation)-1],w=ev.dh===1;
+  const r=rotations[rotationNumber(serviceContext(m,ev).rotation)-1],w=ev.dh===1;
   r.total++;r.won+=Number(w);r.lost+=Number(!w);
   const side=serviceContext(m,ev).side;
   if(side==='away'){r.sideoutTotal++;r.sideoutWon+=Number(w);knownService++}
@@ -403,7 +427,7 @@ function analyze(m,scope='set'){
   if(!inScope(ev)||ev.action!=='passRating'||!Number.isInteger(ev.rating)||ev.rating<0||ev.rating>3)return;
   allPassN++;allPassT+=ev.rating;
   if(ev.playerId){const p=passerMap[ev.playerId]||(passerMap[ev.playerId]={id:ev.playerId,count:0,total:0,perfect:0,aced:0});p.count++;p.total+=ev.rating;p.perfect+=Number(ev.rating===3);p.aced+=Number(ev.rating===0);}
-  if(Number.isInteger(ev.rotation)){const r=rotations[rotationNumber(ev.rotation)-1];r.passN=(r.passN||0)+1;r.passT=(r.passT||0)+ev.rating;}
+  if(Number.isInteger(ev.rotation)){const r=rotations[rotationNumber(serviceContext(m,ev).rotation)-1];r.passN=(r.passN||0)+1;r.passT=(r.passT||0)+ev.rating;}
   const b=byPass[ev.rating];b.count++;
   for(let k=i+1;k<evs.length;k++){const nx=evs[k];if(nx.setIndex!==ev.setIndex)break;if(nx.action==='passRating')break;if(isPoint(nx)){b.decided++;b.won+=Number(nx.dh===1);break;}}
  });
@@ -485,7 +509,7 @@ const $=sel=>document.querySelector(sel);
 const main=$('#main');
 let toastTimeout;
 function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el.classList.remove('show'),2800)}
-function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(Object.assign({},state,{matchUndo:(state.matchUndo||[]).slice(-3)})));return true}catch(e){toast('Device storage is full or unavailable. Please export a backup.');return false}} function persist(){if(!saveLocal())return;if(window.VBSync&&window.VBSync.ready)window.VBSync.changed();else{const label=$('#saveStatus');if(label&&!label.dataset.sync)label.textContent='● Saved on device';}}
+function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(Object.assign({},state,{matchUndo:(state.matchUndo||[]).slice(-3)})));return true}catch(e){toast('Device storage is full or unavailable. Please export a backup.');return false}} function persist(){if(!saveLocal())return;if(window.VBSync)window.VBSync.changed();else{const label=$('#saveStatus');if(label&&!label.dataset.sync)label.textContent='● Saved on device';}}
 function match(){return state.matches.find(m=>m.id===state.currentMatchId)||null}
 function selectedPlayer(m=match()){return m?.roster.find(p=>p.id===state.selectedPlayerId)||m?.roster[0]||null}
 function matchWins(m){return m.sets.reduce((r,s)=>{if(s.winner==='home')r.home++;if(s.winner==='away')r.away++;return r},{home:0,away:0})}
@@ -533,6 +557,7 @@ function render(){
   if(state.tab==='board')renderBoard();
   if(state.tab==='history')renderHistory();   if(state.tab==='tourney')renderTourney();
   if(state.tab==='team')renderTeam();
+  window.VBRefreshSyncStatus?.();
 }
 let prefill={};
 function tState(){const t=state.tourney&&typeof state.tourney==='object'?state.tourney:(state.tourney={});if(!t.res||typeof t.res!=='object')t.res={};if(!t.sat||typeof t.sat!=='object')t.sat={};if(![1,2,3,4,null].includes(t.place))t.place=null;return t}
@@ -587,6 +612,64 @@ function renderLiveStatStrip(m){
  const values=[['Serving in',att?inside+'/'+att:'—'],['Aces',count('ace')],['Serve errors',count('serveError')],['Kills',count('kill')+count('tipPoint')],['Tips',count('tipPoint')],['Kill errors',count('attackError')],['General errors',count('ourError')]];
  return '<div class="v8-statstrip" aria-label="This set team statistics">'+values.map(([label,value])=>'<div class="v8-statitem"><span>'+label+'</span><b>'+value+'</b></div>').join('')+'</div>';
 }
+let quickOut=null;
+function quickCandidates(m,out){
+ return m.roster.filter(p=>!Rules.canSub(m,out,p.id)).sort((a,b)=>{
+  const wasHere=id=>m.regulation.assigned[id]===m.regulation.slotKeys[m.lineup.slots.indexOf(out)];
+  return Number(wasHere(b.id))-Number(wasHere(a.id));
+ });
+}
+function quickBench(m){
+ if(quickOut?.match!==m.id||quickOut.set!==m.sets.length||!m.lineup.slots.includes(quickOut.id))return '';
+ const out=playerById(m,quickOut.id),r=m.regulation;
+ if(!out)return '';
+ const person=p=>p?'#'+esc(p.number)+' '+esc(p.name):'';
+ const intro='<div class="button-spread"><strong>Replace '+person(out)+'</strong><button class="btn sm ghost" data-action="quick-sub-close">Cancel</button></div>';
+ if(r.liberoActive===out.id){
+  const wait=r.lastLiberoRally===r.rally,other=r.liberos.find(id=>id!==out.id);
+  return '<div class="vb-bench">'+intro+'<div class="vb-bench-options"><button class="btn" data-action="libero-out" '+(wait?'disabled':'')+'>Return '+person(playerById(m,r.replacedId))+'</button>'+
+   (other?'<button class="btn" data-action="libero-switch" '+(wait?'disabled':'')+'>Switch to '+person(playerById(m,other))+'</button>':'')+'</div>'+(wait?'<p>Available after the next rally.</p>':'')+'</div>';
+ }
+ const bench=quickCandidates(m,out.id);
+ const cap=Rules.profile(m).cap;
+ const options=bench.map(p=>'<button class="btn" data-action="quick-sub-in" data-id="'+esc(p.id)+'" data-out="'+esc(out.id)+'">'+person(p)+'</button>').join('');
+ return '<div class="vb-bench">'+intro+(bench.length?'<div class="vb-bench-options">'+options+'</div>':'<p>'+(cap!==null&&r.subs>=cap?'Substitution limit reached for this set.':'No eligible bench players for this position.')+'</p>')+'</div>';
+}
+function coverageForm(m){
+ const r=Rules.ensure(m),max=Rules.profile(m).maxLiberos;
+ if(!max||m.status!=='live')return '';
+ const locked=Rules.hasStarted(m)||r.subs>0||!!r.liberoActive;
+ const coverage=Rules.coverageOf(r);
+ const label=id=>{const p=playerById(m,id);return p?'#'+p.number+' '+p.name:'';};
+ const choices=(ids,selected)=>ids.map(id=>'<option value="'+esc(id)+'" '+(id===selected?'selected':'')+'>'+esc(label(id))+'</option>').join('');
+ const bench=m.roster.map(p=>p.id).filter(id=>r.liberos.includes(id)||(!m.lineup.slots.includes(id)&&id!==r.replacedId));
+ const middles=[...new Set([...m.lineup.slots,r.replacedId,...coverage.map(p=>p.middle)].filter(id=>id&&!r.liberos.includes(id)))];
+ const designations=Array.from({length:max},(_,i)=>'<label>Libero '+(i+1)+'<select name="designated" '+(locked?'disabled':'')+'><option value="">None</option>'+choices(bench,r.liberos[i])+'</select></label>').join('');
+ const assignments=[0,1].map(i=>{
+  const pair=coverage[i],order=Math.max(0,r.liberos.indexOf(pair?.libero));
+  const options=Array.from({length:max},(_,n)=>'<option value="'+n+'" '+(n===order?'selected':'')+'>Libero '+(n+1)+'</option>').join('');
+  return '<div class="vb-coverage-row"><label>Middle '+(i+1)+'<select name="middle"><option value="">No automatic cover</option>'+choices(middles,pair?.middle)+'</select></label>'+
+    (max>1?'<label>Covered by<select name="cover">'+options+'</select></label>':'<input type="hidden" name="cover" value="0">')+'</div>';
+ }).join('');
+ const summary=coverage.map(p=>label(p.libero)+' for '+label(p.middle)).join(' · ');
+ const current=r.liberoActive?label(r.liberoActive)+' is in for '+label(r.replacedId):'';
+ return '<details class="vb-coverage"><summary>Libero coverage <span>'+esc(current||summary||'Set up')+'</span></summary><form id="coverageForm" class="form-stack"><div class="vb-coverage-row">'+designations+'</div>'+
+  (locked?'<small>Designations are locked for this set. You can still change coverage.</small>':'')+assignments+
+  '<p>Choose one or both middles. Each libero enters in the back row and returns the middle for the front row or their serve.</p><button class="btn primary" type="submit">Save coverage</button></form></details>';
+}
+function saveCoverage(m,form){
+ if(!m||m.status!=='live')return;
+ const values=new FormData(form),r=Rules.ensure(m);
+ const designationControls=[...form.querySelectorAll('[name="designated"]')];
+ const liberos=designationControls.map(el=>el.value);
+ const middles=values.getAll('middle'),covers=values.getAll('cover');
+ const pairs=middles.flatMap((id,i)=>id?[{middle:id,libero:liberos[Number(covers[i])]}]:[]);
+ const previous=clone(m);
+ const problem=Rules.setCoverage(m,liberos.filter(Boolean),pairs);
+ if(problem){toast(problem);return;}
+ state.matchUndo.push({id:m.id,snapshot:previous});if(state.matchUndo.length>35)state.matchUndo.shift();
+ applyAutoLibero(m);persist();render();toast('Libero coverage saved');
+}
 function renderMatch(){
  const m=match();if(!m){main.innerHTML=matchForm();return;}
  const live=m.status==='live',set=m.sets.at(-1),wins=matchWins(m),num=m.sets.length;
@@ -606,19 +689,19 @@ function renderMatch(){
  const recent=m.events.slice(-6).reverse().map(ev=>`<div class="v6-history-item"><span>${esc(actionText(ev,m))}${ev.serveZone?' · Zone '+ev.serveZone:''}</span><small>${ev.dh===1?'+1 us':ev.da===1?'+1 them':'note'}</small></div>`).join('');
  const mode=state.scorerMode;
  main.innerHTML=`<div class="v6-shell"><div class="v6-pagehead"><div><h1>${esc(our)} <span>vs.</span> ${esc(their)}</h1><p>Set ${num} · ${esc(prettyDate(m.date))} · ${live?'Live scoring':'Match finished'}</p></div><div class="v6-mode" aria-label="Scoring interface"><button data-action="scorer-mode" data-value="coach" aria-pressed="${mode==='coach'}" class="${mode==='coach'?'selected':''}">Coach mode</button><button data-action="scorer-mode" data-value="statkeeper" aria-pressed="${mode==='statkeeper'}" class="${mode==='statkeeper'?'selected':''}">Statkeeper</button></div></div>
- <div class="v6-score-card"><div class="v6-scoreboard"><div><span>${teamLogo(our,true)}${esc(our)}</span><strong>${set.home}</strong><button data-action="score" data-type="ourPoint" ${!live?'disabled':''} aria-label="One tap: add Barons point">+1 quick</button></div><div class="v6-midscore"><span>SET ${num}</span><b>${wins.home}–${wins.away}</b><span>${m.sets.map((s,i)=>`S${i+1}: ${s.home}–${s.away}`).join(' · ')}</span></div><div><span>${teamLogo(their)}${esc(their)}</span><strong>${set.away}</strong><button data-action="score" data-type="theirPoint" ${!live?'disabled':''} aria-label="One tap: add opponent point">+1 quick</button></div></div><div class="v6-scoretools"><div class="v6-serving"><span>Serving:</span><button data-action="lineup-serving" data-side="home" class="${serve==='home'?'chosen':''}" ${!live?'disabled':''}>● Us</button><button data-action="lineup-serving" data-side="away" class="${serve==='away'?'chosen':''}" ${!live?'disabled':''}>● Them</button></div><div class="v6-scorelinks"><button data-action="quick-serve-in" ${!live||serve!=='home'||!server?'disabled':''}>Serve in ✓ ${server?'#'+esc(server.number):''}</button><button data-action="quick-block" ${!live?'disabled':''}>▰ Block +1</button><button data-action="quick-our-error" ${!live?'disabled':''}>General error</button><span>Rotation R${Analytics.rotationNumber(m.lineup.rotationCount)}</span><button data-action="undo-match" ${!state.matchUndo.length?'disabled':''}>↶ Undo</button></div></div></div>
+ <div class="v6-score-card"><div class="v6-scoreboard"><div><span>${teamLogo(our,true)}${esc(our)}</span><strong>${set.home}</strong><button data-action="score" data-type="ourPoint" ${!live?'disabled':''} aria-label="One tap: add Barons point">+1 quick</button></div><div class="v6-midscore"><span>SET ${num}</span><small data-match-sync role="status" aria-live="polite"></small><b>${wins.home}–${wins.away}</b><span>${m.sets.map((s,i)=>`S${i+1}: ${s.home}–${s.away}`).join(' · ')}</span></div><div><span>${teamLogo(their)}${esc(their)}</span><strong>${set.away}</strong><button data-action="score" data-type="theirPoint" ${!live?'disabled':''} aria-label="One tap: add opponent point">+1 quick</button></div></div><div class="v6-scoretools"><div class="v6-serving"><span>Serving:</span><button data-action="lineup-serving" data-side="home" class="${serve==='home'?'chosen':''}" ${!live?'disabled':''}>● Us</button><button data-action="lineup-serving" data-side="away" class="${serve==='away'?'chosen':''}" ${!live?'disabled':''}>● Them</button></div><div class="v6-scorelinks"><button data-action="quick-serve-in" ${!live||serve!=='home'||!server?'disabled':''}>Serve in ✓ ${server?'#'+esc(server.number):''}</button><button data-action="quick-block" ${!live?'disabled':''}>▰ Block +1</button><button data-action="quick-our-error" ${!live?'disabled':''}>General error</button><span>Rotation R${Analytics.rotationNumber(m.lineup.rotationCount)}</span><button data-action="undo-match" ${!state.matchUndo.length?'disabled':''}>↶ Undo</button></div></div></div>
   ${live?renderLiveStatStrip(m):''}
  ${live?(()=>{const slots=m.lineup.slots,rn=Analytics.rotationNumber(m.lineup.rotationCount),sum=Analytics.analyze(m,'set'),here=sum.rotations[rn-1];
   const last=n=>{const t=String(n||'').trim().split(/\s+/);return t.length>1?t.slice(1).join(' '):t[0]||''};
-  const cell=(i,label)=>{const p=slots[i]&&playerById(m,slots[i]);const srv=i===0&&serve==='home';const lib=m.regulation?.liberos?.includes(slots[i]);return `<div class="v7-pos${srv?' serving':''}${lib?' libero':''}"><small>${label}${srv?' 🏐':''}</small><b>${p?'#'+esc(p.number):'—'}</b><span>${p?esc(last(p.name)):'Empty'}</span></div>`};
+  const cell=(i,label)=>{const p=slots[i]&&playerById(m,slots[i]);const srv=i===0&&serve==='home';const lib=m.regulation?.liberos?.includes(slots[i]);const selected=p&&quickOut?.match===m.id&&quickOut.set===m.sets.length&&quickOut.id===p.id;return `<button type="button" data-action="quick-sub-out" data-id="${esc(slots[i]||'')}" aria-label="Substitute ${p?esc(p.name):'empty position'}, ${label}" aria-pressed="${!!selected}" ${p?'':'disabled'} class="v7-pos${srv?' serving':''}${lib?' libero':''}"><small>${label}${srv?' 🏐':''}</small><b>${p?'#'+esc(p.number):'—'}</b><span>${p?esc(last(p.name)):'Empty'}</span></button>`};
   const first=!serve&&set.home===0&&set.away===0;
   const prompt=!serve?`<div class="v7-firstserve"><div><b>${first?'Who serves first in set '+num+'?':'Who is serving?'}</b><span>Rotation tracking and side-out stats only count once this is set.</span></div><div><button class="btn primary" data-action="lineup-serving" data-side="home">We serve</button><button class="btn" data-action="lineup-serving" data-side="away">They serve</button></div></div>`:'';
-  const court=`<div class="v7-courtwrap"><div class="v7-courthead"><b>R${rn} on court</b><span>${here.total?`${here.won}–${here.lost} this set${here.sideoutTotal?` · side-out ${Analytics.rate(here.sideoutWon,here.sideoutTotal)}%`:''}${here.passN?` · pass ${(here.passT/here.passN).toFixed(1)}`:''}`:'No rallies yet in this rotation'}</span><button class="btn sm ghost" data-tab-go="lineup">Subs / fix rotation →</button></div><div class="v7-court"><div class="v7-net">NET</div>${cell(3,'P4')}${cell(2,'P3')}${cell(1,'P2')}${cell(4,'P5')}${cell(5,'P6')}${cell(0,'P1')}</div></div>`;
+  const court=`<div class="v7-courtwrap"><div class="v7-courthead"><b>R${rn} on court</b><span>${here.total?`${here.won}–${here.lost} this set${here.sideoutTotal?` · side-out ${Analytics.rate(here.sideoutWon,here.sideoutTotal)}%`:''}${here.passN?` · pass ${(here.passT/here.passN).toFixed(1)}`:''}`:'No rallies yet in this rotation'}</span><button class="btn sm ghost" data-tab-go="lineup">Edit rotation</button></div><div class="v7-court"><div class="v7-net">NET · TAP A PLAYER TO SUB</div>${cell(3,'P4')}${cell(2,'P3')}${cell(1,'P2')}${cell(4,'P5')}${cell(5,'P6')}${cell(0,'P1')}</div>${quickBench(m)}${coverageForm(m)}</div>`;
   const sel=state.srPasser&&slots.includes(state.srPasser)?state.srPasser:null;
   const sr=serve==='away'?`<div class="v7-sr"><div class="v7-srhead"><b>Serve receive</b><span>${sel?'Now rate the pass':'Tap who passed, then rate it (or just rate it)'}</span></div><div class="v7-srplayers">${slots.filter(Boolean).map(id=>{const p=playerById(m,id);return p?`<button class="${sel===id?'active':''}" data-action="sr-passer" data-id="${esc(id)}"><b>#${esc(p.number)}</b><span>${esc(last(p.name))}</span></button>`:''}).join('')}</div><div class="v7-srrates">${[[0,'Ace / shank'],[1,'Bad'],[2,'Good'],[3,'Perfect']].map(([v,l])=>`<button class="v7-r${v}" data-action="sr-rate" data-value="${v}"><b>${v}</b><span>${l}</span></button>`).join('')}</div></div>`:'';
   return prompt+court+sr;})():''}
  ${live?`<div class="v6-stage"><div class="v6-main"><div class="v6-stage-panel"><h2>Log a point <small>or use +1 quick above</small></h2><p class="v6-help">1 · Who won the rally?</p><div class="v6-sides"><button data-action="scorer-side" data-side="home" class="home ${activeSide==='home'?'active':''}">✓ Our point</button><button data-action="scorer-side" data-side="away" class="away ${activeSide==='away'?'active':''}">✓ Their point</button></div>${activeSide?`<p class="v6-help">2 · How was it scored?</p><div class="v6-causes">${choices.map(([key,label])=>`<button class="${activeCause===key?'active':''}" data-action="scorer-cause" data-type="${key}">${label}</button>`).join('')}</div>${playerPanel}`:'<div class="v6-tip">Choose a side, then the type of point and (if needed) the player. Everything updates in one recorded rally.</div>'}</div>
- <div class="v6-inlineactions"><button class="btn sm" data-tab-go="lineup">⟳ Substitutions</button><button class="btn sm" data-tab-go="board">✎ Whiteboard</button><button class="btn sm" data-tab-go="dashboard">▤ Analysis</button></div></div><aside class="v6-aside"><div class="v6-stage-panel"><div class="v6-pick-top"><h2>In-game notes</h2><span class="v6-note-small">R${Analytics.rotationNumber(m.lineup.rotationCount)}</span></div><p class="v6-note-small">${countdown.side==='away'?`Opponent on a ${countdown.count}-point run`:countdown.side==='home'?`Our team on a ${countdown.count}-point run`:'Start recording rallies to see runs'}.</p><div class="v6-timeout-grid"><button data-action="scorer-timeout" data-side="home">⏱ Our timeout (${timeoutCounts.home})</button><button data-action="scorer-timeout" data-side="away">Their timeout (${timeoutCounts.away})</button></div><p class="v6-note-small">Timeouts are logged at the current score. Check tournament limits separately.</p></div>
+ <div class="v6-inlineactions"><button class="btn sm" data-action="show-quick-court">Quick sub</button><button class="btn sm" data-tab-go="board">✎ Whiteboard</button><button class="btn sm" data-tab-go="dashboard">▤ Analysis</button></div></div><aside class="v6-aside"><div class="v6-stage-panel"><div class="v6-pick-top"><h2>In-game notes</h2><span class="v6-note-small">R${Analytics.rotationNumber(m.lineup.rotationCount)}</span></div><p class="v6-note-small">${countdown.side==='away'?`Opponent on a ${countdown.count}-point run`:countdown.side==='home'?`Our team on a ${countdown.count}-point run`:'Start recording rallies to see runs'}.</p><div class="v6-timeout-grid"><button data-action="scorer-timeout" data-side="home">⏱ Our timeout (${timeoutCounts.home})</button><button data-action="scorer-timeout" data-side="away">Their timeout (${timeoutCounts.away})</button></div><p class="v6-note-small">Timeouts are logged at the current score. Check tournament limits separately.</p></div>
  ${mode==='statkeeper'?`<div class="v6-stage-panel"><h2>Extra tracking <small>no extra point</small></h2><p class="v6-note-small">Tag individual touches without changing the score.</p><div class="v6-causes">${[['serveIn','Serve in'],['attackAttempt','Attack kept in play'],['dig','Dig'],['assist','Assist']].map(([key,label])=>`<button class="${state.statkeeperAction===key?'active':''}" data-action="scorer-detail" data-type="${key}">${label}</button>`).join('')}</div>${state.statkeeperAction?`<div class="v6-player-grid">${courtButtons(state.statkeeperAction)}</div>`:''}<div class="v6-zones"><h3>Serve target zone ${serve==='home'?`· #${esc(server?.number||'?')} serving`:''}</h3><div class="v6-zonecourt">${[4,3,2,5,6,1].map(n=>`<button data-action="scorer-zone" data-value="${n}" class="${serveZone===n?'selected':''}" ${serve!=='home'?'disabled':''}>${n}</button>`).join('')}</div><p class="v6-note-small">Tap a target zone before a serve. It attaches to the next rally while we serve; it doesn't award a point. ${serveZone?'Zone '+serveZone+' armed.':'No zone armed.'}</p></div><div class="v6-pass-link"><h3>Serve receive · 0–3 rating</h3><p class="v6-note-small">Choose three on-court passers; then tap a rating. A pass rating never awards a point.</p><div class="v6-passer-grid">${ourRoster.map(pid=>{const p=playerById(m,pid);return `<button data-action="dashboard-passer" data-id="${esc(pid)}" class="${m.gameDay.passers.includes(pid)?'selected':''}" aria-pressed="${m.gameDay.passers.includes(pid)}">#${esc(p?.number||'?')}</button>`}).join('')}</div><div class="v6-pass-ratings">${[0,1,2,3].map(n=>`<button data-action="dashboard-pass" data-value="${n}" ${m.lineup.serving!=='away'||m.gameDay.passers.length!==3?'disabled':''}>${n}</button>`).join('')}</div><p class="v6-note-small">${m.gameDay.passers.length}/3 selected · ${m.lineup.serving==='away'?'Opponent serving':'Choose Them serving to rate passes'}</p><button class="btn sm ghost" data-tab-go="dashboard">Full passing analysis →</button></div></div>`:''}
  <div class="v6-stage-panel"><h2>Latest actions</h2><div class="v6-recent">${recent||'<p class="v6-note-small">Ready for your first point.</p>'}</div></div></aside></div>`:
  `<section class="panel v6-end"><h2>Match complete · ${wins.home}–${wins.away} sets</h2>${summaryTable(m)}<div class="btn-row"><button class="btn primary" data-action="new-match">+ New match</button><button class="btn" data-action="export-csv" data-id="${esc(m.id)}">Export player stats</button></div></section>`}
@@ -734,8 +817,35 @@ function exportSeasonTotals(){
  download('\ufeff'+csv,'barons-all-match-stats-'+dateLocal()+'.csv','text/csv;charset=utf-8');toast('All-match player stats exported');
 }
 
-let reviewMatchId=null,reviewSet=0;
+let reviewMatchId=null,reviewSet=0,servePreview=null,serveUndo=null;
 function setReview(m,i){if(!m.serviceReview)m.serviceReview={};if(!m.serviceReview[i])m.serviceReview[i]={};return m.serviceReview[i]}
+function reviewPreviewUI(m,si){
+ const same=p=>p&&p.matchId===m.id&&p.set===si;
+ const panel=same(servePreview)?servePreview:null;
+ const undo=same(serveUndo)&&JSON.stringify(VBServeReview.snapshot(m,si))===serveUndo.after;
+ const describe=ctx=>{
+  const player=ctx.serverId&&m.roster.find(p=>p.id===ctx.serverId);
+  const side=ctx.side==='home'?'We serve · '+(player?'#'+player.number+' '+player.name:'unassigned'):ctx.side==='away'?'They serve':'Serve unknown';
+  return side+(Number.isInteger(ctx.rotation)?' · R'+Analytics.rotationNumber(ctx.rotation):'');
+ };
+ let preview='';
+ if(panel){
+  const result=VBServeReview.preview(m,si,panel.choice);
+  panel.fingerprint=JSON.stringify(result);
+  const reset=panel.choice==='reset',title=reset?'Reset serving corrections':panel.choice==='home'?'We served first':'They served first';
+  const rows=result.changes.map(row=>{
+   const before=describe(row.from),after=describe(row.to);
+   return '<li><b>Rally '+row.rally+' · '+esc(ACTIONS[row.action]?.label||row.action)+'</b><br>'+esc(before)+' → '+esc(after)+'</li>';
+  }).join('');
+  const summary=rows?'<details open><summary>'+result.changes.length+' affected '+(result.changes.length===1?'entry':'entries')+'</summary><ol>'+rows+'</ol></details>':'<p>No rally entries would change.</p>';
+  const canApply=reset?Boolean(result.before.config||result.before.fixes.length):Boolean(result.count&&result.changes.length);
+  preview='<section aria-label="Serving correction preview"><h4>'+title+'</h4>'+summary+result.notes.map(n=>'<p>'+esc(n)+'</p>').join('')+
+   '<div class="btn-row"><button class="btn sm primary" data-action="apply-serve-preview" '+(canApply?'':'disabled')+'>Apply to set '+(si+1)+'</button><button class="btn sm ghost" data-action="cancel-serve-preview">Cancel</button></div></section>';
+ }
+ return '<div class="v11-bk"><h4>Correct opening serve</h4><p>Choose who served at 0–0 to preview the serving side, player and rotation for each affected rally.</p><div class="btn-row">'+
+  '<button class="btn sm" data-action="preview-serve" data-choice="home">We served first</button><button class="btn sm" data-action="preview-serve" data-choice="away">They served first</button>'+
+  (undo?'<button class="btn sm ghost" data-action="undo-serve-preview">Undo last serving change</button>':'')+'</div>'+preview+'</div>';
+}
 function renderServeReview(m){
  const si=Math.min(Math.max(reviewSet,0),m.sets.length-1),cfg=m.serviceReview?.[si]||{};
  const all=(m.events||[]).filter(e=>e.setIndex===si&&(e.action==='serveIn'||e.dh===1||e.da===1||['dig','assist','attackAttempt'].includes(e.action)));
@@ -744,31 +854,32 @@ function renderServeReview(m){
  const bkRallies=all.filter(e=>Analytics.serviceContext(m,e).side==='home'&&bk&&(e.rallyContext?.serverId===bk.id||e.rallyContext?.lineup?.[0]===bk.id||(['serveIn','ace','serveError'].includes(e.action)&&e.playerId===bk.id)));
  const options=(current,allOptions)=>allOptions.map(([value,label])=>'<option value="'+esc(value)+'" '+(value===current?'selected':'')+'>'+esc(label)+'</option>').join('');
  const setButtons=m.sets.map((_,i)=>'<button class="btn sm '+(i===si?'primary':'ghost')+'" data-action="review-set" data-index="'+i+'">Set '+(i+1)+(m.serviceReview?.[i]?.reviewed?' ✓':'')+'</button>').join('');
- const rows=all.map((e,index)=>{
+ let rallyNumber=1;
+ const rows=all.map(e=>{
+  const number=rallyNumber;if(e.dh===1||e.da===1)rallyNumber++;
   const ctx=Analytics.serviceContext(m,e),original=e.rallyContext?.serving||'unknown';
   const explicit=['ace','serveError','serveIn'].includes(e.action),fix=e.serveFix||{};
-  const side=options(fix.side||'auto',[['auto','Original / set flip'],['home','We served'],['away','They served'],['unknown','Unknown']]);
+  const side=options(fix.side||'auto',[['auto',cfg.opening?'Opening-serve replay':'Recorded / set flip'],['home','We served'],['away','They served'],['unknown','Unknown']]);
   const current=Object.prototype.hasOwnProperty.call(fix,'serverId')?(fix.serverId||'none'):'auto';
   const chosen=m.roster.find(p=>p.id===ctx.serverId);
   const server=options(current,[['auto','Recorded'+(chosen?' · #'+chosen.number:' · unknown')],['none','Unassigned'],...m.roster.map(p=>[p.id,'#'+p.number+' '+p.name])]);
   const playerAction=['kill','tipPoint','attackError','ourError','block','dig','assist','attackAttempt'].includes(e.action);
   const hasServeContext=e.action==='serveIn'||e.dh===1||e.da===1;
-  const credited=e.statPlayerFixId??e.playerId;
-  const creditedName=m.roster.find(p=>p.id===credited)?.name||'Unassigned';
+  const creditedName=m.roster.find(p=>p.id===e.playerId)?.name||'Unassigned';
   const playerOptions=options(Object.prototype.hasOwnProperty.call(e,'statPlayerFixId')?(e.statPlayerFixId||'none'):'auto',[['auto','Original · '+creditedName],['none','Unassigned'],...m.roster.map(p=>[p.id,'#'+p.number+' '+p.name])]);
-  return '<div class="v11-review-row"><div class="v11-review-desc"><b>Rally '+(index+1)+' · '+esc(ACTIONS[e.action]?.label||e.action)+'</b><small>'+ (e.dh===1?'+1 Barons':e.da===1?'+1 opponent':'No point')+' · recorded '+esc(original)+' · now '+esc(ctx.side||'unknown')+'</small></div>'+
+  return '<div class="v11-review-row"><div class="v11-review-desc"><b>Rally '+number+' · '+esc(ACTIONS[e.action]?.label||e.action)+'</b><small>'+ (e.dh===1?'+1 Barons':e.da===1?'+1 opponent':'No point')+' · recorded '+esc(original)+' · now '+esc(ctx.side||'unknown')+'</small></div>'+
    (hasServeContext?'<label>Serving side<select data-serve-fix="side" data-event-id="'+esc(e.id)+'" '+(explicit?'disabled':'')+'>'+side+'</select></label>'+
    '<label>Actual server<select data-serve-fix="server" data-event-id="'+esc(e.id)+'" '+(ctx.side!=='home'?'disabled':'')+'>'+server+'</select></label>':'')+
    (playerAction?'<label>Player credited for play<select data-stat-player-fix data-event-id="'+esc(e.id)+'">'+playerOptions+'</select></label>':'')+'</div>';
  }).join('');
  return '<div class="v11-review"><div class="button-spread"><div><h3>Serve review · '+esc(m.opponent)+'</h3><p class="section-intro">Changes fix serving statistics, not scores or original lineup history.</p></div><button class="btn sm ghost" data-action="close-serve-review">Close</button></div>'+
- '<div class="btn-row v11-review-sets">'+setButtons+'</div><p class="v10-warning">Wrong starting server? <b>Flip set</b> only if the serving-side recording was reversed throughout that set. If you corrected it partway through, use the individual rally dropdowns instead.</p>'+
- '<div class="btn-row"><button class="btn sm '+(cfg.flip?'primary':'ghost')+'" data-action="flip-serve-set">'+(cfg.flip?'↶ Undo set flip':'⇄ Flip set serving sides')+'</button>'+
+ '<div class="btn-row v11-review-sets">'+setButtons+'</div>'+reviewPreviewUI(m,si)+
+ '<div class="btn-row">'+(cfg.opening?'':'<button class="btn sm '+(cfg.flip?'primary':'ghost')+'" data-action="flip-serve-set">'+(cfg.flip?'↶ Undo set flip':'⇄ Flip all recorded sides')+'</button>')+
  '<button class="btn sm '+(cfg.reviewed?'primary':'ghost')+'" data-action="review-verified">'+(cfg.reviewed?'✓ Reviewed':'Mark set reviewed')+'</button>'+
- '<button class="btn sm ghost" data-action="reset-serve-set">Reset corrections</button></div>'+
+ '<button class="btn sm ghost" data-action="preview-serve" data-choice="reset">Reset serving corrections</button></div>'+
  (bk&&cover.length?'<div class="v11-bk"><b>BK back-row serving cover</b><p>Teagan or Corbyn served and played back-row defense for BK. Assign the actual server to rallies logged as BK in P1. The other left-side player keeps their own stats. If they alternated within this set, change the individual rally rows. Digs and general errors must be reassigned separately using “Player credited for play” if they were incorrectly logged to BK.</p><div class="btn-row">'+cover.map(p=>'<button class="btn sm" data-action="bk-cover" data-id="'+esc(p.id)+'" '+(!bkRallies.length?'disabled':'')+'>'+esc(p.name)+' covered BK ('+bkRallies.length+')</button>').join('')+'</div></div>':'')+
  '<div class="v11-review-list">'+(rows||'<p class="no-data">No scoring rallies recorded for this set.</p>')+'</div>'+
- '<p class="download-note">Aces and serve errors indicate the Barons served and are fixed as “We served”. “Original / set flip” means the original setting may still be wrong. Unknown players remain unassigned. Save a backup from Team before major edits; changes sync with the match data.</p></div>';
+ '<p class="download-note">Individual serving edits take priority over replay. Resetting serving corrections keeps player credits for attacks, digs, assists and blocks.</p></div>';
 }
 function changeStatPlayer(m,eventId,value){
  const e=m.events.find(e=>e.id===eventId);
@@ -808,11 +919,14 @@ ensureLineup(m);const active=m.status==='live',s=m.sets.at(-1),ln=m.lineup,bench
 const court=COURT_POSITIONS.map((pos,i)=>{const p=playerById(m,ln.slots[pos-1]),front=i<3;return `<button class="rotation-player ${selection===pos?'selected':''} ${pos===1?'server-position':''}" data-action="lineup-position" data-pos="${pos}" aria-label="Select position ${pos}: ${p?esc(p.name):'empty'}"><span class="position-meta">P${pos}${pos===1?' · SERVE':''}</span><span class="rotation-jersey">${p?'#'+esc(p.number):'—'}</span><span class="rotation-name">${p?esc(p.name):'Empty'}</span><span class="rotation-zone">${ln.slots[pos-1]===m.regulation.liberoActive?'★ LIBERO':front?'Front row':'Back row'}</span></button>`}).join('');
 const playerChoices=m.roster.map(p=>{const current=ln.slots.indexOf(p.id)+1,libero=m.regulation.liberos.includes(p.id);return `<button class="candidate ${p.id===slotId?'current':''}" data-action="lineup-assign" data-id="${esc(p.id)}" ${!active||libero?'disabled':''}><span class="jersey">${esc(p.number)}</span><span><strong>${esc(p.name)}</strong><small>${current?`On court · P${current}${current===selection?' (selected)':''}`:libero?'Designated libero · use Libero controls':'Bench · available'}</small></span></button>`}).join('');
 const outOptions=ln.slots.map((id,i)=>{const p=playerById(m,id);return p?`<option value="${esc(id)}">P${i+1} · #${esc(p.number)} ${esc(p.name)}</option>`:''}).join('');const inOptions=bench.map(p=>`<option value="${esc(p.id)}">#${esc(p.number)} ${esc(p.name)}</option>`).join('');
-main.innerHTML=`<div class="page-heading"><div><h1 class="page-title">Rotation & lineup</h1><p class="subheading">${esc(m.teamName)} vs. ${esc(m.opponent)} · Set ${m.sets.length} · ${s.home}–${s.away}. Tap a court position to change its player.</p></div><div class="btn-row"><button class="btn sm ghost" data-action="undo-match" ${!state.matchUndo?.length?'disabled':''}>↶ Undo</button><button class="btn sm blue" data-tab-go="match">Live scoreboard</button></div></div><div class="lineup-layout"><div class="left-stack"><section class="panel lineup-court-panel"><div class="button-spread"><h2>Our court · 6 positions</h2><span class="pill">${ln.slots.filter(Boolean).length} / 6 on court</span></div><div class="rotation-net"><span>NET</span></div><div class="rotation-court">${court}</div><div class="court-bottom-label">BACK LINE · P1 serves from back right</div><div class="lineup-controls"><button class="btn primary" data-action="lineup-rotate" data-direction="1" ${!active?'disabled':''}>⟳ Rotate clockwise</button><button class="btn ghost" data-action="lineup-rotate" data-direction="-1" ${!active?'disabled':''}>⟲ Reverse</button></div><p class="download-note">On a side-out, P2 → P1, P1 → P6, P6 → P5, P5 → P4, P4 → P3, P3 → P2. Manual buttons allow rotation corrections. Total rotations this set: <strong>${ln.rotationCount}</strong>.</p></section><section class="panel"><div class="button-spread"><h2>Serving team</h2><span class="pill serve-pill">${ln.serving==='home'?'● Us serving':ln.serving==='away'?'● Opponent serving':'○ Not set'}</span></div><div class="server-toggle"><button class="btn ${ln.serving==='home'?'primary':'ghost'}" data-action="lineup-serving" data-side="home" ${!active?'disabled':''}>● We serve</button><button class="btn ${ln.serving==='away'?'blue':'ghost'}" data-action="lineup-serving" data-side="away" ${!active?'disabled':''}>● They serve</button><button class="btn ghost" data-action="lineup-serving" data-side="none" ${!active?'disabled':''}>Clear</button></div><label class="toggle-line"><input type="checkbox" id="autoRotateToggle" ${ln.autoRotate?'checked':''} ${!active?'disabled':''}><span>Auto-rotate when we win a rally on their serve</span></label><p class="download-note">Select who serves first at the start of each set. The app changes serving sides when a receiving team wins a point. Auto-rotation only happens after you choose a serving team. Changing the server manually does not rotate anyone.</p></section></div><div class="right-stack"><section class="panel"><h2>Edit court positions</h2><p class="section-intro">Position <strong>P${selection}</strong>${chosen?` · #${esc(chosen.number)} ${esc(chosen.name)}`:' · empty'}. Choose a player below. Existing starters swap positions; bench players replace the selected starter.</p><div class="candidate-grid">${playerChoices}</div>${!active?'<p class="download-note">This match is finished; lineup editing is disabled.</p>':canSetStart?'<p class="download-note">The set has not started scoring. Changes here set the opening lineup for this set.</p>':'<p class="download-note">A bench-player change after scoring starts is recorded as a substitution. The chosen rule profile enforces per-set limits and legal re-entry.</p>'}</section><section class="panel"><h2>Quick substitution</h2><form id="substitutionForm" class="form-stack"><label>Player out<select name="out" ${!active?'disabled':''}>${outOptions||'<option value="">No starters available</option>'}</select></label><label>Player in · bench<select name="in" ${!active||!bench.length?'disabled':''}>${inOptions||'<option value="">No bench players available</option>'}</select></label><button class="btn primary wide" type="submit" ${!active||!bench.length?'disabled':''}>⇄ Record substitution</button></form><p class="download-note">Substitutions keep the incoming player in the same rotation position. Each change is logged with its set and score. Every entry uses one regular substitution, with libero replacements handled separately below.</p></section><section class="panel"><div class="button-spread"><h2>Substitution rules</h2><span class="pill">${m.regulation.subs} / ${Rules.profile(m).cap===null?'∞':Rules.profile(m).cap} subs</span></div><p class="section-intro"><strong>${esc(Rules.profile(m).label)}</strong></p><p class="download-note">${esc(Rules.profile(m).description)} All substitutions are checked for rotation-slot re-entry and the selected per-set limit. Local tournament rules may differ.</p></section><section class="panel"><h2>Libero management</h2>${Rules.profile(m).maxLiberos?`<p class="section-intro">Declare up to ${Rules.profile(m).maxLiberos} liberos before play. Replacements do not use regular substitutions. Only one libero may be on court.</p><div class="two-inputs">${Array.from({length:Rules.profile(m).maxLiberos},(_,i)=>`<label>Libero ${i+1}<select data-libero-select="${i}" ${!active||!canSetStart?'disabled':''}><option value="">None</option>${m.roster.filter(p=>!ln.slots.includes(p.id)||m.regulation.liberos.includes(p.id)).map(p=>`<option value="${esc(p.id)}" ${m.regulation.liberos[i]===p.id?'selected':''}>#${esc(p.number)} ${esc(p.name)}</option>`).join('')}</select></label>`).join('')}</div><label class="lineup-select-label" style="margin-top:12px"><span>Automatic libero coverage · choose the starter to replace</span><select data-auto-libero-for ${!active||!canSetStart||!m.regulation.liberos.length?'disabled':''}><option value="">Manual libero changes only</option>${ln.slots.map(id=>playerById(m,id)).filter(p=>p&&!m.regulation.liberos.includes(p.id)).map(p=>`<option value="${esc(p.id)}" ${m.regulation.autoLiberoFor===p.id?'selected':''}>#${esc(p.number)} ${esc(p.name)}</option>`).join('')}</select><small class="muted">Libero 1 (${esc(playerById(m,m.regulation.liberos[0])?.name||'not set')}) enters for this player in the back row and exits when they move to the front row or must serve.</small></label><div class="libero-controls"><p class="small muted">${m.regulation.liberoActive?'On court: '+esc(playerById(m,m.regulation.liberoActive)?.name||'Libero')+' · replacing #'+esc(playerById(m,m.regulation.replacedId)?.number||'?'):'No libero on court'}</p>${!m.regulation.liberoActive?`<div class="two-inputs"><label>Libero<select id="liberoInId" ${!active?'disabled':''}>${m.regulation.liberos.map(id=>{const p=playerById(m,id);return `<option value="${esc(id)}">#${esc(p?.number||'?')} ${esc(p?.name||'')}</option>`}).join('')}</select></label><label>Back row<select id="liberoPosition" ${!active?'disabled':''}>${[1,6,5].map(pos=>`<option value="${pos}" ${selection===pos?'selected':''}>P${pos} · #${esc(playerById(m,ln.slots[pos-1])?.number||'?')}</option>`).join('')}</select></label></div><button class="btn blue wide" data-action="libero-in" ${!active||!m.regulation.liberos.length?'disabled':''}>Libero IN</button>`:`<div class="btn-row"><button class="btn blue" data-action="libero-out" ${!active?'disabled':''}>Libero OUT · return original player</button>${m.regulation.liberos.length>1?`<button class="btn" data-action="libero-switch" ${!active?'disabled':''}>Switch liberos</button>`:''}</div>`}</div>`:'<p class="download-note">Liberos are disabled for this match profile.</p>'}</section><section class="panel"><h2>Rotation & substitution log</h2><div class="lineup-log">${m.lineupEvents.length?m.lineupEvents.slice(-12).reverse().map(ev=>`<div class="event"><span>${esc(lineupEventText(m,ev))}</span><span class="muted">S${ev.setIndex+1} · ${ev.score?ev.score.join('–'):'—'}</span></div>`).join(''):'<p class="no-data">Rotations and substitutions will appear here.</p>'}</div></section></div></div>`;
+main.innerHTML=`<div class="page-heading"><div><h1 class="page-title">Rotation & lineup</h1><p class="subheading">${esc(m.teamName)} vs. ${esc(m.opponent)} · Set ${m.sets.length} · ${s.home}–${s.away}. Tap a court position to change its player.</p></div><div class="btn-row"><button class="btn sm ghost" data-action="undo-match" ${!state.matchUndo?.length?'disabled':''}>↶ Undo</button><button class="btn sm blue" data-tab-go="match">Live scoreboard</button></div></div><div class="lineup-layout"><div class="left-stack"><section class="panel lineup-court-panel"><div class="button-spread"><h2>Our court · 6 positions</h2><span class="pill">${ln.slots.filter(Boolean).length} / 6 on court</span></div><div class="rotation-net"><span>NET</span></div><div class="rotation-court">${court}</div><div class="court-bottom-label">BACK LINE · P1 serves from back right</div><div class="lineup-controls"><button class="btn primary" data-action="lineup-rotate" data-direction="1" ${!active?'disabled':''}>⟳ Rotate clockwise</button><button class="btn ghost" data-action="lineup-rotate" data-direction="-1" ${!active?'disabled':''}>⟲ Reverse</button></div><p class="download-note">On a side-out, P2 → P1, P1 → P6, P6 → P5, P5 → P4, P4 → P3, P3 → P2. Manual buttons allow rotation corrections. Total rotations this set: <strong>${ln.rotationCount}</strong>.</p></section><section class="panel"><div class="button-spread"><h2>Serving team</h2><span class="pill serve-pill">${ln.serving==='home'?'● Us serving':ln.serving==='away'?'● Opponent serving':'○ Not set'}</span></div><div class="server-toggle"><button class="btn ${ln.serving==='home'?'primary':'ghost'}" data-action="lineup-serving" data-side="home" ${!active?'disabled':''}>● We serve</button><button class="btn ${ln.serving==='away'?'blue':'ghost'}" data-action="lineup-serving" data-side="away" ${!active?'disabled':''}>● They serve</button><button class="btn ghost" data-action="lineup-serving" data-side="none" ${!active?'disabled':''}>Clear</button></div><label class="toggle-line"><input type="checkbox" id="autoRotateToggle" ${ln.autoRotate?'checked':''} ${!active?'disabled':''}><span>Auto-rotate when we win a rally on their serve</span></label><p class="download-note">Select who serves first at the start of each set. The app changes serving sides when a receiving team wins a point. Auto-rotation only happens after you choose a serving team. Changing the server manually does not rotate anyone.</p></section></div><div class="right-stack"><section class="panel"><h2>Edit court positions</h2><p class="section-intro">Position <strong>P${selection}</strong>${chosen?` · #${esc(chosen.number)} ${esc(chosen.name)}`:' · empty'}. Choose a player below. Existing starters swap positions; bench players replace the selected starter.</p><div class="candidate-grid">${playerChoices}</div>${!active?'<p class="download-note">This match is finished; lineup editing is disabled.</p>':canSetStart?'<p class="download-note">The set has not started scoring. Changes here set the opening lineup for this set.</p>':'<p class="download-note">A bench-player change after scoring starts is recorded as a substitution. The chosen rule profile enforces per-set limits and legal re-entry.</p>'}</section><section class="panel"><h2>Quick substitution</h2><form id="substitutionForm" class="form-stack"><label>Player out<select name="out" ${!active?'disabled':''}>${outOptions||'<option value="">No starters available</option>'}</select></label><label>Player in · bench<select name="in" ${!active||!bench.length?'disabled':''}>${inOptions||'<option value="">No bench players available</option>'}</select></label><button class="btn primary wide" type="submit" ${!active||!bench.length?'disabled':''}>⇄ Record substitution</button></form><p class="download-note">Substitutions keep the incoming player in the same rotation position. Each change is logged with its set and score. Every entry uses one regular substitution, with libero replacements handled separately below.</p></section><section class="panel"><div class="button-spread"><h2>Substitution rules</h2><span class="pill">${m.regulation.subs} / ${Rules.profile(m).cap===null?'∞':Rules.profile(m).cap} subs</span></div><p class="section-intro"><strong>${esc(Rules.profile(m).label)}</strong></p><p class="download-note">${esc(Rules.profile(m).description)} All substitutions are checked for rotation-slot re-entry and the selected per-set limit. Local tournament rules may differ.</p></section><section class="panel"><h2>Libero management</h2>${Rules.profile(m).maxLiberos?`${coverageForm(m)}<div class="libero-controls"><p class="small muted">${m.regulation.liberoActive?'On court: '+esc(playerById(m,m.regulation.liberoActive)?.name||'Libero')+' · replacing #'+esc(playerById(m,m.regulation.replacedId)?.number||'?'):'No libero on court'}</p>${!m.regulation.liberoActive?`<div class="two-inputs"><label>Libero<select id="liberoInId" ${!active?'disabled':''}>${m.regulation.liberos.map(id=>{const p=playerById(m,id);return `<option value="${esc(id)}">#${esc(p?.number||'?')} ${esc(p?.name||'')}</option>`}).join('')}</select></label><label>Back row<select id="liberoPosition" ${!active?'disabled':''}>${[1,6,5].map(pos=>`<option value="${pos}" ${selection===pos?'selected':''}>P${pos} · #${esc(playerById(m,ln.slots[pos-1])?.number||'?')}</option>`).join('')}</select></label></div><button class="btn blue wide" data-action="libero-in" ${!active||!m.regulation.liberos.length?'disabled':''}>Libero IN</button>`:`<div class="btn-row"><button class="btn blue" data-action="libero-out" ${!active?'disabled':''}>Libero OUT · return original player</button>${m.regulation.liberos.length>1?`<button class="btn" data-action="libero-switch" ${!active?'disabled':''}>Switch liberos</button>`:''}</div>`}</div>`:'<p class="download-note">Liberos are disabled for this match profile.</p>'}</section><section class="panel"><h2>Rotation & substitution log</h2><div class="lineup-log">${m.lineupEvents.length?m.lineupEvents.slice(-12).reverse().map(ev=>`<div class="event"><span>${esc(lineupEventText(m,ev))}</span><span class="muted">S${ev.setIndex+1} · ${ev.score?ev.score.join('–'):'—'}</span></div>`).join(''):'<p class="no-data">Rotations and substitutions will appear here.</p>'}</div></section></div></div>`;
 }
 function snapshotMatch(m){state.matchUndo.push({id:m.id,snapshot:clone(m)});if(state.matchUndo.length>35)state.matchUndo.shift();}
 function logLineup(m,event){const s=m.sets.at(-1);m.lineupEvents.push({id:uid(),time:new Date().toISOString(),setIndex:m.sets.length-1,score:[s.home,s.away],...event});}
-function applyAutoLibero(m){Rules.ensure(m);const r=m.regulation,target=r.autoLiberoFor;if(!target||!r.liberos.length)return;const position=m.lineup.slots.indexOf(target)+1,backRow=[1,5,6].includes(position);if(r.liberoActive){if(r.replacedId===target&&(!backRow||(position===1&&m.lineup.serving==='home'))){const out=Rules.liberoOut(m,true);if(out.ok)logLineup(m,{type:'liberoOut',outId:out.outId,inId:out.inId,position:out.position,automatic:true});}return;}if(backRow&&m.lineup.serving&&r.lastLiberoRally!==r.rally){const result=Rules.liberoIn(m,r.liberos[0],position);if(result.ok)logLineup(m,{type:'liberoIn',outId:result.outId,inId:r.liberos[0],position,automatic:true});}}
+function applyAutoLibero(m){
+ const change=Rules.autoReplace(m);
+ if(change)logLineup(m,change);
+}
 function rotateLineup(m,direction=1,source='manual'){const exited=Rules.rotate(m,direction);if(exited?.ok)logLineup(m,{type:'liberoOut',outId:exited.outId,inId:exited.inId,position:exited.position,automatic:true});m.lineup.rotationCount+=direction;logLineup(m,{type:'rotate',direction,source});applyAutoLibero(m);}
 function setServing(side){const m=match();if(!m||m.status!=='live')return;const value=['home','away'].includes(side)?side:null;if(m.lineup.serving===value)return;snapshotMatch(m);m.lineup.serving=value;applyAutoLibero(m);if(value!=='home'&&m.gameDay)m.gameDay.pendingServeZone=null;logLineup(m,{type:'serve',serving:value});persist();render();toast(value===null?'Server cleared':value==='home'?'We are serving':'Opponent is serving');}
 function assignLineup(position,id,forceSub=false){
@@ -830,15 +944,12 @@ function assignLineup(position,id,forceSub=false){
  }else{
    const reason=Rules.canSub(m,prev,id);if(reason){toast(reason);return;}
    snapshotMatch(m);const result=Rules.doSub(m,prev,id);if(!result.ok){state.matchUndo.pop();toast(result.reason);return;}
-   logLineup(m,{type:'sub',position,outId:prev,inId:id});
+   logLineup(m,{type:'sub',position,outId:prev,inId:id});applyAutoLibero(m);
  }
  if(canSetStart&&!forceSub){const set=m.sets.at(-1);set.startingLineup=slots.slice();if(m.sets.length===1)m.startingLineup=slots.slice();}
  state.selectedPlayerId=id;persist();render();toast(other!==-1?'Opening positions swapped':canSetStart&&!forceSub?'Starting player changed':'Legal substitution recorded');
 }
 function substitute(outId,inId){const m=match();if(!m||m.status!=='live')return;const position=m.lineup.slots.indexOf(outId)+1;if(!position){toast('Choose an on-court player.');return;}assignLineup(position,inId,true);}
-function configureMatchLiberos(ids){const m=match();if(!m||m.status!=='live')return;const before=clone(m);const result=Rules.configureLiberos(m,ids);if(!result.ok){toast(result.reason);render();return;}state.matchUndo.push({id:m.id,snapshot:before});if(state.matchUndo.length>35)state.matchUndo.shift();
- persist();render();toast('Libero designation saved');}
-function configureMatchAutoLibero(id){const m=match();if(!m||m.status!=='live')return;const before=clone(m),result=Rules.configureAutoLibero(m,id);if(!result.ok){toast(result.reason);render();return;}state.matchUndo.push({id:m.id,snapshot:before});if(state.matchUndo.length>35)state.matchUndo.shift();applyAutoLibero(m);persist();render();toast(id?'Automatic libero coverage saved':'Automatic libero coverage cleared');}
 function liberoOperation(type,playerId,position){const m=match();if(!m||m.status!=='live')return;Rules.ensure(m);
  let reason=null;
  if(type==='in')reason=Rules.canLiberoIn(m,playerId,position);
@@ -874,14 +985,15 @@ function renderBoard(){
 function newMatch(data){const slots=normalizeSlots(state.defaultLineup,state.players);const m={id:uid(),teamName:state.teamName||'My Team',opponent:data.opponent.trim(),date:data.date,bestOf:Number(data.bestOf),roster:clone(state.players),sets:[{home:0,away:0,winner:null,startingLineup:slots.slice()}],events:[],status:'live',startingLineup:slots.slice(),lineup:{slots:slots.slice(),serving:null,autoRotate:true,rotationCount:0},lineupEvents:[],gameDay:{passers:[],pendingServeZone:null},rulesProfile:Rules.PROFILES[data.rulesProfile]?data.rulesProfile:'mhsaa'};Rules.ensure(m);state.matches.push(m);state.currentMatchId=m.id;state.selectedPlayerId=m.lineup.slots.find(Boolean)||m.roster[0]?.id||null;state.matchUndo=[];resetScorer();persist();render();toast('Match started — choose the first server on Lineup!')}
 function record(action,playerId=null){const m=match();if(!m||m.status!=='live')return;const s=m.sets.at(-1);
 if(action==='serveIn'&&m.lineup.serving==='away'){toast('Choose “We serve” before recording a serve.');return}
-if(action==='serveIn'&&!playerId){toast('Choose the server first.');return}if(m.regulation?.liberos?.includes(playerId)&&['ace','block'].includes(action)){toast('A designated libero cannot serve or block.');return;}let dh=0,da=0;if(['kill','tipPoint','ace','block','ourPoint','oppError'].includes(action))dh=1;if(['serveError','attackError','theirPoint','oppKill','oppAce','ourError'].includes(action))da=1;if(action==='homeMinus'&&s.home>0)dh=-1;if(action==='awayMinus'&&s.away>0)da=-1;if(['homeMinus','awayMinus'].includes(action)&&dh===0&&da===0)return;
+if(action==='serveIn'&&!playerId){toast('Choose the server first.');return}if(m.regulation?.liberos?.includes(playerId)&&['ace','serveIn','serveError','block'].includes(action)){toast('A designated libero cannot serve or block.');return;}let dh=0,da=0;if(['kill','tipPoint','ace','block','ourPoint','oppError'].includes(action))dh=1;if(['serveError','attackError','theirPoint','oppKill','oppAce','ourError'].includes(action))da=1;if(action==='homeMinus'&&s.home>0)dh=-1;if(action==='awayMinus'&&s.away>0)da=-1;if(['homeMinus','awayMinus'].includes(action)&&dh===0&&da===0)return;
 snapshotMatch(m);
- if(['serveIn','ace','serveError'].includes(action)&&m.lineup.serving!=='home')m.lineup.serving='home';
+ if(['serveIn','ace','serveError'].includes(action)&&m.lineup.serving!=='home'){m.lineup.serving='home';applyAutoLibero(m);}
 const context=(dh>0||da>0||action==='serveIn')?{rotation:m.lineup.rotationCount,serving:m.lineup.serving,serverId:action==='serveIn'?playerId:m.lineup.serving==='home'?m.lineup.slots[0]||null:null,lineup:m.lineup.slots.slice()}:null;
 const zone=context?.serving==='home'&&Number.isInteger(m.gameDay?.pendingServeZone)?m.gameDay.pendingServeZone:null;
 m.events.push({id:uid(),time:new Date().toISOString(),setIndex:m.sets.length-1,playerId,action,dh,da,...(context?{rallyContext:context}:{}),...(zone?{serveZone:zone}:{})});if(dh>0||da>0)m.gameDay.pendingServeZone=null;s.home+=dh;s.away+=da;if(dh>0||da>0)Rules.rally(m);
 // Rotation only occurs when our team wins the rally while receiving.
-if(dh>0&&m.lineup.serving==='away'){m.lineup.serving='home';if(m.lineup.autoRotate)rotateLineup(m,1,'auto');else applyAutoLibero(m);}else if(da>0&&m.lineup.serving==='home'){m.lineup.serving='away';applyAutoLibero(m);}
+if(dh>0&&m.lineup.serving==='away'){m.lineup.serving='home';if(m.lineup.autoRotate)rotateLineup(m,1,'auto');}else if(da>0&&m.lineup.serving==='home'){m.lineup.serving='away';}
+if(dh>0||da>0)applyAutoLibero(m);
 const to=m.bestOf===2?25:m.sets.length===m.bestOf?15:25;let winner=null;if(s.home>=to&&s.home-s.away>=2)winner='home';if(s.away>=to&&s.away-s.home>=2)winner='away';let message='Recorded: '+ACTIONS[action].label;
 if(winner){s.winner=winner;const won=matchWins(m);if(m.bestOf===2?m.sets.length>=2:Math.max(won.home,won.away)>=Math.ceil(m.bestOf/2)){m.status='finished';message=(won.home>won.away?'Match won! 🏆':won.home===won.away?'Split the sets.':'Match complete')+' Final: '+won.home+'–'+won.away;}else{const newSlots=normalizeSlots(m.startingLineup,m.roster);m.lineup.slots=newSlots.slice();m.lineup.serving=null;m.lineup.rotationCount=0;m.sets.push({home:0,away:0,winner:null,startingLineup:newSlots.slice()});Rules.newSet(m);if(m.gameDay)m.gameDay.pendingServeZone=null;message='Set '+(m.sets.length-1)+' '+(winner==='home'?'won!':'lost.')+' Next set ready.';}}
 persist();render();toast(message);}
@@ -935,7 +1047,7 @@ const stop=e=>{if(!pointerState||pointerState.id!==e.pointerId)return;const chan
 function exportImage(){const c=$('#court');if(!c)return;try{c.toBlob(blob=>{if(!blob){toast('Could not create image');return}const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='volleyboard-'+(state.board.name||'play').replace(/[^a-z0-9-]/ig,'-')+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)},'image/png');toast('Court image exported')}catch(e){toast('Image export not supported here')}}
 // ---- Event wiring ----
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;state.boardFocus=false;persist();render()});
-main.addEventListener('submit',e=>{e.preventDefault();const id=e.target.id;const f=new FormData(e.target);if(id==='substitutionForm'){substitute(String(f.get('out')||''),String(f.get('in')||''));}if(id==='newMatchForm'){prefill={};const opponent=String(f.get('opponent')||'').trim();if(!opponent)return;newMatch({opponent,date:String(f.get('date')),bestOf:f.get('bestOf'),rulesProfile:String(f.get('rulesProfile')||'mhsaa')});}if(id==='teamNameForm'){const name=String(f.get('teamName')||'').trim();if(!name)return;state.teamName=name;persist();render();toast('Team name saved');}if(id==='addPlayerForm'){const number=String(f.get('number')||'').trim(),name=String(f.get('name')||'').trim();if(!number||!name)return;state.players.push({id:uid(),number,name});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast(name+' added');}});
+main.addEventListener('submit',e=>{e.preventDefault();const id=e.target.id;const f=new FormData(e.target);if(id==='coverageForm'){saveCoverage(match(),e.target);return;}if(id==='substitutionForm'){substitute(String(f.get('out')||''),String(f.get('in')||''));}if(id==='newMatchForm'){prefill={};const opponent=String(f.get('opponent')||'').trim();if(!opponent)return;newMatch({opponent,date:String(f.get('date')),bestOf:f.get('bestOf'),rulesProfile:String(f.get('rulesProfile')||'mhsaa')});}if(id==='teamNameForm'){const name=String(f.get('teamName')||'').trim();if(!name)return;state.teamName=name;persist();render();toast('Team name saved');}if(id==='addPlayerForm'){const number=String(f.get('number')||'').trim(),name=String(f.get('name')||'').trim();if(!number||!name)return;state.players.push({id:uid(),number,name});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast(name+' added');}});
 main.addEventListener('change',async e=>{const target=e.target;
 if(target.matches('[data-stat-player-fix]')){
  const m=state.matches.find(x=>x.id===reviewMatchId);if(!m)return;
@@ -946,10 +1058,25 @@ if(target.matches('[data-serve-fix]')){
  const m=state.matches.find(x=>x.id===reviewMatchId);if(!m)return;
  if(changeServeFix(m,target.dataset.eventId,target.dataset.serveFix,target.value)){persist();render();toast('Serving correction saved');}
  return;
-}if(target.matches('[data-tn-key]')){const t=tState(),k=target.dataset.tnKey,si=+target.dataset.tnSet,side=+target.dataset.tnSide,v=target.value.trim();const r=t.res[k]||(t.res[k]={sets:[[null,null],[null,null]]});if(!Array.isArray(r.sets))r.sets=[[null,null],[null,null]];while(r.sets.length<2)r.sets.push([null,null]);r.sets[si][side]=v===''?null:Math.max(0,Math.min(99,parseInt(v,10)||0));if(r.sets.every(x=>x[0]==null&&x[1]==null))delete t.res[k];persist();setTimeout(()=>{const a=document.activeElement,sel=a&&a.dataset&&a.dataset.tnKey?`[data-tn-key="${a.dataset.tnKey}"][data-tn-set="${a.dataset.tnSet}"][data-tn-side="${a.dataset.tnSide}"]`:null;render();if(sel){const n=main.querySelector(sel);if(n){n.focus();n.select&&n.select();}}},0);return;}if(target.matches('[data-default-slot]')){const pos=Number(target.dataset.defaultSlot)-1,id=target.value,other=state.defaultLineup.indexOf(id),old=state.defaultLineup[pos];if(pos>=0&&pos<6){state.defaultLineup[pos]=id||null;if(other!==-1&&other!==pos)state.defaultLineup[other]=old;state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast('Starting six saved');}return;}if(target.matches('[data-libero-select]')){const m=match();if(!m)return;const selects=[...main.querySelectorAll('[data-libero-select]')].map(el=>el.value);configureMatchLiberos(selects);return;}if(target.matches('[data-auto-libero-for]')){configureMatchAutoLibero(target.value);return;}if(target.id==='penSize'){state.penWidth=Number(target.value)||5;persist();return;}if(target.id==='autoRotateToggle'){const m=match();if(m&&m.status==='live'){snapshotMatch(m);m.lineup.autoRotate=target.checked;persist();render();toast(target.checked?'Automatic rotation on':'Manual rotation only');}return;}if(target.matches('[data-player-field]')){const player=state.players.find(p=>p.id===target.dataset.id);if(!player)return;let value=target.value.trim();if(!value){target.value=player[target.dataset.playerField];return}player[target.dataset.playerField]=value;persist();toast('Roster updated');}if(target.id==='markerLabel'){const m=state.board.markers.find(x=>x.id===state.selectedMarkerId);if(m){boardSnapshot();m.label=target.value.trim().slice(0,5)||m.label;boardSave();courtDraw();}}if(target.id==='importFile'&&target.files?.[0]){let f=target.files[0];try{const data=JSON.parse(await f.text());if(!Array.isArray(data.players)||!Array.isArray(data.matches)||!data.board||!Array.isArray(data.plays))throw Error('Not a VolleyBoard backup');if(!confirm(window.VBSync&&window.VBSync.ready?'Restore backup? Team sync is on, so this REPLACES the matches, plays and roster for EVERY coach, not just this device.':'Restore backup? This REPLACES all current matches, plays and team data on this device.')){target.value='';return}state=Object.assign(freshState(),data,{version:6,tab:'team',boardFocus:false,matchUndo:[],boardUndo:[]});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);state.matches.forEach(m=>{ensureLineup(m);Rules.ensure(m);if(!m.gameDay)m.gameDay={passers:[]};if(!Array.isArray(m.gameDay.passers))m.gameDay.passers=[];if(!Number.isInteger(m.gameDay.pendingServeZone))m.gameDay.pendingServeZone=null;});persist();render();toast('Backup restored successfully')}catch(err){toast('Could not import: '+err.message)}}});
+}if(target.matches('[data-tn-key]')){const t=tState(),k=target.dataset.tnKey,si=+target.dataset.tnSet,side=+target.dataset.tnSide,v=target.value.trim();const r=t.res[k]||(t.res[k]={sets:[[null,null],[null,null]]});if(!Array.isArray(r.sets))r.sets=[[null,null],[null,null]];while(r.sets.length<2)r.sets.push([null,null]);r.sets[si][side]=v===''?null:Math.max(0,Math.min(99,parseInt(v,10)||0));if(r.sets.every(x=>x[0]==null&&x[1]==null))delete t.res[k];persist();setTimeout(()=>{const a=document.activeElement,sel=a&&a.dataset&&a.dataset.tnKey?`[data-tn-key="${a.dataset.tnKey}"][data-tn-set="${a.dataset.tnSet}"][data-tn-side="${a.dataset.tnSide}"]`:null;render();if(sel){const n=main.querySelector(sel);if(n){n.focus();n.select&&n.select();}}},0);return;}if(target.matches('[data-default-slot]')){const pos=Number(target.dataset.defaultSlot)-1,id=target.value,other=state.defaultLineup.indexOf(id),old=state.defaultLineup[pos];if(pos>=0&&pos<6){state.defaultLineup[pos]=id||null;if(other!==-1&&other!==pos)state.defaultLineup[other]=old;state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast('Starting six saved');}return;}if(target.id==='penSize'){state.penWidth=Number(target.value)||5;persist();return;}if(target.id==='autoRotateToggle'){const m=match();if(m&&m.status==='live'){snapshotMatch(m);m.lineup.autoRotate=target.checked;persist();render();toast(target.checked?'Automatic rotation on':'Manual rotation only');}return;}if(target.matches('[data-player-field]')){const player=state.players.find(p=>p.id===target.dataset.id);if(!player)return;let value=target.value.trim();if(!value){target.value=player[target.dataset.playerField];return}player[target.dataset.playerField]=value;persist();toast('Roster updated');}if(target.id==='markerLabel'){const m=state.board.markers.find(x=>x.id===state.selectedMarkerId);if(m){boardSnapshot();m.label=target.value.trim().slice(0,5)||m.label;boardSave();courtDraw();}}if(target.id==='importFile'&&target.files?.[0]){let f=target.files[0];try{const data=JSON.parse(await f.text());if(!Array.isArray(data.players)||!Array.isArray(data.matches)||!data.board||!Array.isArray(data.plays))throw Error('Not a VolleyBoard backup');if(!confirm(window.VBSync&&window.VBSync.ready?'Restore backup? Team sync is on, so this REPLACES the matches, plays and roster for EVERY coach, not just this device.':'Restore backup? This REPLACES all current matches, plays and team data on this device.')){target.value='';return}state=Object.assign(freshState(),data,{version:6,tab:'team',boardFocus:false,matchUndo:[],boardUndo:[]});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);state.matches.forEach(m=>{ensureLineup(m);Rules.ensure(m);if(!m.gameDay)m.gameDay={passers:[]};if(!Array.isArray(m.gameDay.passers))m.gameDay.passers=[];if(!Number.isInteger(m.gameDay.pendingServeZone))m.gameDay.pendingServeZone=null;});persist();render();toast('Backup restored successfully')}catch(err){toast('Could not import: '+err.message)}}});
 main.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
 if(b.dataset.tabGo){state.tab=b.dataset.tabGo;persist();render();return}
 const action=b.dataset.action;const id=b.dataset.id;
+if(action==='quick-sub-out'){
+ const m=match();if(!m||m.status!=='live'||!m.lineup.slots.includes(id))return;
+ const closing=quickOut?.id===id&&quickOut.match===m.id&&quickOut.set===m.sets.length;
+ quickOut=closing?null:{match:m.id,set:m.sets.length,id};render();
+ const focus=main.querySelector('.vb-bench-options button:not(:disabled)')||main.querySelector('.vb-bench [data-action="quick-sub-close"]');
+ if(focus)focus.focus({preventScroll:true});return;
+}
+if(action==='quick-sub-close'||action==='show-quick-court'){
+ quickOut=null;render();const player=main.querySelector('[data-action="quick-sub-out"]:not(:disabled)');if(player)player.focus();return;
+}
+if(action==='quick-sub-in'){
+ const m=match();if(!m||quickOut?.match!==m.id||quickOut.set!==m.sets.length||quickOut.id!==b.dataset.out)return;
+ const why=Rules.canSub(m,b.dataset.out,id);if(why){toast(why);return;}
+ quickOut=null;substitute(b.dataset.out,id);return;
+}
 if(action==='tourney-place'){tState().place=+id||null;persist();render();return}if(action==='tourney-clear'){delete tState().res[id];persist();render();toast('Result cleared');return}if(action==='tourney-sat'){tState().sat[id]=b.dataset.res;persist();render();window.scrollTo(0,0);toast(b.dataset.res==='W'?'Win recorded. Next game is up top.':'Loss recorded. Next game is up top.');return}if(action==='tourney-sat-undo'){const T=window.VBTourney,t=tState(),{res}=tResults(),pl=t.place||T.placeOf(T.us.pool,T.us.seed,res),r=T.saturdayRun(pl,t.sat);const last=r.played[r.played.length-1];if(last){delete t.sat[last.game.id];persist();render();toast('Last Saturday result removed');}return}
 if(action==='tourney-score'){const cur=match();if(cur&&cur.status==='live'){toast('Finish or close the current match first (Match tab).');return}state.currentMatchId=null;state.matchUndo=[];prefill={opponent:b.dataset.opp,date:b.dataset.date,bestOf:b.dataset.format||'3'};state.tab='match';persist();render();window.scrollTo(0,0);toast(b.dataset.opp?'Opponent and pool format filled in. Check the lineup, then Start match':'Type the opponent, then Start match');return}
 if(action==='scorer-mode'){state.scorerMode=b.dataset.value==='statkeeper'?'statkeeper':'coach';resetScorer();render();return;}
@@ -971,8 +1098,8 @@ if(action==='lineup-assign'){assignLineup(Number(state.selectedLineupSlot),id);r
 if(action==='lineup-rotate'){const m=match();if(!m||m.status!=='live')return;snapshotMatch(m);rotateLineup(m,Number(b.dataset.direction));persist();render();toast('Rotation updated');return;}
 if(action==='lineup-serving'){setServing(b.dataset.side);return;}
 if(action==='libero-in'){liberoOperation('in',$('#liberoInId')?.value,Number($('#liberoPosition')?.value));return;}
-if(action==='libero-out'){liberoOperation('out');return;}
-if(action==='libero-switch'){const m=match(),next=m?.regulation?.liberos.find(id=>id!==m?.regulation?.liberoActive);liberoOperation('switch',next);return;}
+if(action==='libero-out'){quickOut=null;liberoOperation('out');return;}
+if(action==='libero-switch'){quickOut=null;const m=match(),next=m?.regulation?.liberos.find(id=>id!==m?.regulation?.liberoActive);liberoOperation('switch',next);return;}
 if(action==='board-use-lineup'){const m=match();if(!m){toast('Start a match first');return;}boardSnapshot();for(let pos=1;pos<=6;pos++){const marker=state.board.markers.find(x=>x.id==='h'+pos);const player=playerById(m,m.lineup.slots[pos-1]);if(marker)marker.label=player?String(player.number).slice(0,5):'–';}persist();render();toast('Current lineup copied to whiteboard');return;}
 if(action==='select-player'){state.selectedPlayerId=id;persist();render();return}
 if(action==='stat'){record(b.dataset.type,selectedPlayer()?.id||null);return}
@@ -981,19 +1108,30 @@ if(action==='undo-match'){undoMatch();return}
 if(action==='finish-match'){finishMatch();return}
 if(action==='new-match'){state.currentMatchId=null;state.matchUndo=[];persist();render();return}
 if(action==='view-history'){state.historySelection=id;reviewMatchId=null;persist();render();return}
-if(action==='review-serves'){const m=state.matches.find(x=>x.id===id);if(!m)return;reviewMatchId=id;reviewSet=0;render();return}
-if(action==='close-serve-review'){reviewMatchId=null;render();return}
-if(action==='review-set'){const m=state.matches.find(x=>x.id===reviewMatchId);if(!m)return;reviewSet=Math.max(0,Math.min(m.sets.length-1,Number(b.dataset.index)||0));render();return}
-if(['flip-serve-set','reset-serve-set','review-verified','bk-cover'].includes(action)){
+if(action==='review-serves'){const m=state.matches.find(x=>x.id===id);if(!m)return;reviewMatchId=id;reviewSet=0;servePreview=null;render();return}
+if(action==='close-serve-review'){reviewMatchId=null;servePreview=null;render();return}
+if(action==='review-set'){const m=state.matches.find(x=>x.id===reviewMatchId);if(!m)return;reviewSet=Math.max(0,Math.min(m.sets.length-1,Number(b.dataset.index)||0));servePreview=null;render();return}
+if(['preview-serve','cancel-serve-preview','apply-serve-preview','undo-serve-preview'].includes(action)){
+ const m=state.matches.find(x=>x.id===reviewMatchId),set=reviewSet;if(!m)return;
+ if(action==='preview-serve'&&['home','away','reset'].includes(b.dataset.choice)){servePreview={matchId:m.id,set,choice:b.dataset.choice};render();return}
+ if(action==='cancel-serve-preview'){servePreview=null;render();return}
+ if(action==='apply-serve-preview'&&servePreview?.matchId===m.id&&servePreview.set===set){
+  const result=VBServeReview.preview(m,set,servePreview.choice);
+  if(JSON.stringify(result)!==servePreview.fingerprint){render();toast('The set changed. Check the updated preview.');return}
+  VBServeReview.restore(m,set,result.after);
+  serveUndo={matchId:m.id,set,before:result.before,after:JSON.stringify(VBServeReview.snapshot(m,set))};
+ }else if(action==='undo-serve-preview'&&serveUndo?.matchId===m.id&&serveUndo.set===set){
+  if(JSON.stringify(VBServeReview.snapshot(m,set))!==serveUndo.after){serveUndo=null;render();toast('Serving edits changed since this correction.');return}
+  VBServeReview.restore(m,set,serveUndo.before);serveUndo=null;
+ }else return;
+ servePreview=null;persist();render();toast(action==='undo-serve-preview'?'Serving change undone':'Serving corrections saved');return;
+}
+if(['flip-serve-set','review-verified','bk-cover'].includes(action)){
  const m=state.matches.find(x=>x.id===reviewMatchId);if(!m)return;
  const si=reviewSet,cfg=setReview(m,si);
  if(action==='flip-serve-set'){
   if(!confirm('Flip recorded serving sides for all rallies in set '+(si+1)+'? This affects serving analysis, not scores or rotations.'))return;
   cfg.flip=!cfg.flip;cfg.reviewed=false;
- }else if(action==='reset-serve-set'){
-  if(!confirm('Reset all serving corrections in set '+(si+1)+'?'))return;
-  for(const e of m.events.filter(e=>e.setIndex===si)){delete e.serveFix;delete e.statPlayerFixId;}
-  delete m.serviceReview[si];
  }else if(action==='review-verified'){
   cfg.reviewed=!cfg.reviewed;
  }else{

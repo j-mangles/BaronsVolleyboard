@@ -226,3 +226,17 @@ html.pro .empty-icon{display:none}
 html.pro .empty-state h2{margin-top:0}
 html.pro .panel{border-color:transparent}
 html.pro .v6-scoreboard .tlogo{width:1.55em;height:1.55em}
+
+/* Courtside substitutions and set coverage */
+button.v7-pos { color:var(--ink); font:inherit; cursor:pointer; min-height:54px; }
+button.v7-pos[aria-pressed="true"],button.v7-pos:focus-visible { outline:3px solid var(--teal); outline-offset:-3px; }
+.vb-bench,.vb-coverage { margin-top:.65rem; padding:.7rem 0; border-top:1px solid var(--line); }
+.vb-bench-options,.vb-coverage-row { display:flex; flex-wrap:wrap; gap:.5rem; }
+.vb-bench-options { margin-top:.55rem; }
+.vb-bench .btn,.vb-coverage .btn,.vb-coverage select { min-height:44px; }
+.vb-coverage summary { cursor:pointer; min-height:44px; padding:.65rem 0; font-weight:700; }
+.vb-coverage summary span { font-weight:400; margin-left:.45rem; color:var(--muted); overflow-wrap:anywhere; }
+.vb-coverage-row label { flex:1 1 8rem; min-width:0; }
+.vb-coverage-row select { width:100%; }
+.vb-coverage p,.vb-bench p { margin:.4rem 0; }
+[data-match-sync] { font-size:.8rem; line-height:1.3; }
