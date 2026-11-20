@@ -285,6 +285,30 @@ function doSub(m,outId,inId){const reason=canSub(m,outId,inId);if(reason)return 
  r.subs++;m.lineup.slots[i]=inId;
  return {ok:true,position:i+1,slotKey:key};
 }
+function setBackRowPlan(m,starter,covers){
+ const set=m.sets.at(-1),r=ensure(m);
+ if(!starter){delete set.backRowPlan;return null;}
+ const previous=set.backRowPlan;
+ if(!m.lineup.slots.includes(starter)&&starter!==r.replacedId&&starter!==previous?.starter)return 'Choose a player in the rotation.';
+ const players=[starter,...covers];
+ if(!covers.length||covers.length>2||new Set(players).size!==players.length)return 'Choose one or two different substitutes.';
+ if(players.some(id=>!m.roster.some(p=>p.id===id)||r.liberos.includes(id)))return 'Choose regular players for this plan.';
+ set.backRowPlan={starter,covers:covers.slice()};
+ return null;
+}
+function plannedChanges(m){
+ const plan=m.sets.at(-1).backRowPlan;
+ if(!plan||!m.lineup.serving||m.status==='finished')return [];
+ const r=ensure(m),slots=m.lineup.slots,starter=plan.starter;
+ if(r.replacedId===starter||!Array.isArray(plan.covers))return [];
+ if(slots[0]===starter){
+  return plan.covers.filter(id=>!canSub(m,starter,id)).map(id=>({out:starter,in:id}));
+ }
+ const key=r.assigned[starter],index=r.slotKeys.indexOf(key);
+ const cover=slots[index];
+ if(index>=1&&index<=3&&plan.covers.includes(cover)&&!canSub(m,cover,starter))return [{out:cover,in:starter}];
+ return [];
+}
 function setCoverage(m,liberos,pairs){
  const r=ensure(m);
  const same=liberos.length===r.liberos.length&&liberos.every((id,i)=>id===r.liberos[i]);
@@ -352,7 +376,7 @@ function rotate(m,direction=1){const r=ensure(m);let autoOut=null;
 }
 function rally(m){ensure(m).rally++;}
 function newSet(m){const r=ensure(m);m.regulation=buildReg(m,r);return m.regulation;}
-return {PROFILES,profile,hasStarted,ensure,rebaseBeforeSet,canSub,doSub,coverageOf,setCoverage,autoReplace,canLiberoIn,liberoIn,liberoOut,liberoSwitch,rotate,rally,newSet};
+return {PROFILES,profile,hasStarted,ensure,rebaseBeforeSet,canSub,doSub,setBackRowPlan,plannedChanges,coverageOf,setCoverage,autoReplace,canLiberoIn,liberoIn,liberoOut,liberoSwitch,rotate,rally,newSet};
 });
 
 </script>
@@ -635,6 +659,19 @@ function quickBench(m){
  const options=bench.map(p=>'<button class="btn" data-action="quick-sub-in" data-id="'+esc(p.id)+'" data-out="'+esc(out.id)+'">'+person(p)+'</button>').join('');
  return '<div class="vb-bench">'+intro+(bench.length?'<div class="vb-bench-options">'+options+'</div>':'<p>'+(cap!==null&&r.subs>=cap?'Substitution limit reached for this set.':'No eligible bench players for this position.')+'</p>')+'</div>';
 }
+function plannedSubPanel(m){
+ const set=m.sets.at(-1),plan=set.backRowPlan,r=Rules.ensure(m);
+ const name=id=>{const p=playerById(m,id);return p?'#'+esc(p.number)+' '+esc(p.name):'';};
+ const actions=Rules.plannedChanges(m).map(change=>'<button class="btn primary" data-action="planned-sub" data-out="'+esc(change.out)+'" data-id="'+esc(change.in)+'">'+name(change.in)+' in for '+name(change.out)+'</button>').join('');
+ const select=(label,field,players,selected,empty)=>'<label>'+label+'<select name="'+field+'"><option value="">'+empty+'</option>'+players.map(p=>'<option value="'+esc(p.id)+'" '+(selected===p.id?'selected':'')+'>'+name(p.id)+'</option>').join('')+'</select></label>';
+ const regular=m.roster.filter(p=>!r.liberos.includes(p.id));
+ const onCourt=regular.filter(p=>m.lineup.slots.includes(p.id)||p.id===r.replacedId||p.id===plan?.starter);
+ return (actions?'<div class="vb-bench"><strong>Planned substitution</strong><div class="vb-bench-options">'+actions+'</div></div>':'')+
+ '<details class="vb-coverage"><summary>Back-row sub plan <span>'+(plan?name(plan.starter):'Set up')+'</span></summary><form id="backRowForm" class="form-stack">'+
+ select('Player coming out at P1','starter',onCourt,plan?.starter,'No plan this set')+
+ '<div class="vb-coverage-row">'+select('First sub','cover',regular,plan?.covers[0],'Choose a player')+select('Second sub (optional)','cover',regular,plan?.covers[1],'None')+'</div>'+
+ '<p>Tap the suggested change at P1. When the slot returns to the front row, tap to bring the original player back. Each change uses a regular substitution.</p><button class="btn primary" type="submit">Save sub plan</button></form></details>';
+}
 function coverageForm(m){
  const r=Rules.ensure(m),max=Rules.profile(m).maxLiberos;
  if(!max||m.status!=='live')return '';
@@ -696,7 +733,7 @@ function renderMatch(){
   const cell=(i,label)=>{const p=slots[i]&&playerById(m,slots[i]);const srv=i===0&&serve==='home';const lib=m.regulation?.liberos?.includes(slots[i]);const selected=p&&quickOut?.match===m.id&&quickOut.set===m.sets.length&&quickOut.id===p.id;return `<button type="button" data-action="quick-sub-out" data-id="${esc(slots[i]||'')}" aria-label="Substitute ${p?esc(p.name):'empty position'}, ${label}" aria-pressed="${!!selected}" ${p?'':'disabled'} class="v7-pos${srv?' serving':''}${lib?' libero':''}"><small>${label}${srv?' 🏐':''}</small><b>${p?'#'+esc(p.number):'—'}</b><span>${p?esc(last(p.name)):'Empty'}</span></button>`};
   const first=!serve&&set.home===0&&set.away===0;
   const prompt=!serve?`<div class="v7-firstserve"><div><b>${first?'Who serves first in set '+num+'?':'Who is serving?'}</b><span>Rotation tracking and side-out stats only count once this is set.</span></div><div><button class="btn primary" data-action="lineup-serving" data-side="home">We serve</button><button class="btn" data-action="lineup-serving" data-side="away">They serve</button></div></div>`:'';
-  const court=`<div class="v7-courtwrap"><div class="v7-courthead"><b>R${rn} on court</b><span>${here.total?`${here.won}–${here.lost} this set${here.sideoutTotal?` · side-out ${Analytics.rate(here.sideoutWon,here.sideoutTotal)}%`:''}${here.passN?` · pass ${(here.passT/here.passN).toFixed(1)}`:''}`:'No rallies yet in this rotation'}</span><button class="btn sm ghost" data-tab-go="lineup">Edit rotation</button></div><div class="v7-court"><div class="v7-net">NET · TAP A PLAYER TO SUB</div>${cell(3,'P4')}${cell(2,'P3')}${cell(1,'P2')}${cell(4,'P5')}${cell(5,'P6')}${cell(0,'P1')}</div>${quickBench(m)}${coverageForm(m)}</div>`;
+  const court=`<div class="v7-courtwrap"><div class="v7-courthead"><b>R${rn} on court</b><span>${here.total?`${here.won}–${here.lost} this set${here.sideoutTotal?` · side-out ${Analytics.rate(here.sideoutWon,here.sideoutTotal)}%`:''}${here.passN?` · pass ${(here.passT/here.passN).toFixed(1)}`:''}`:'No rallies yet in this rotation'}</span><button class="btn sm ghost" data-tab-go="lineup">Edit rotation</button></div><div class="v7-court"><div class="v7-net">NET · TAP A PLAYER TO SUB</div>${cell(3,'P4')}${cell(2,'P3')}${cell(1,'P2')}${cell(4,'P5')}${cell(5,'P6')}${cell(0,'P1')}</div>${quickBench(m)}${plannedSubPanel(m)}${coverageForm(m)}</div>`;
   const sel=state.srPasser&&slots.includes(state.srPasser)?state.srPasser:null;
   const sr=serve==='away'?`<div class="v7-sr"><div class="v7-srhead"><b>Serve receive</b><span>${sel?'Now rate the pass':'Tap who passed, then rate it (or just rate it)'}</span></div><div class="v7-srplayers">${slots.filter(Boolean).map(id=>{const p=playerById(m,id);return p?`<button class="${sel===id?'active':''}" data-action="sr-passer" data-id="${esc(id)}"><b>#${esc(p.number)}</b><span>${esc(last(p.name))}</span></button>`:''}).join('')}</div><div class="v7-srrates">${[[0,'Ace / shank'],[1,'Bad'],[2,'Good'],[3,'Perfect']].map(([v,l])=>`<button class="v7-r${v}" data-action="sr-rate" data-value="${v}"><b>${v}</b><span>${l}</span></button>`).join('')}</div></div>`:'';
   return prompt+court+sr;})():''}
@@ -1047,7 +1084,11 @@ const stop=e=>{if(!pointerState||pointerState.id!==e.pointerId)return;const chan
 function exportImage(){const c=$('#court');if(!c)return;try{c.toBlob(blob=>{if(!blob){toast('Could not create image');return}const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='volleyboard-'+(state.board.name||'play').replace(/[^a-z0-9-]/ig,'-')+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)},'image/png');toast('Court image exported')}catch(e){toast('Image export not supported here')}}
 // ---- Event wiring ----
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;state.boardFocus=false;persist();render()});
-main.addEventListener('submit',e=>{e.preventDefault();const id=e.target.id;const f=new FormData(e.target);if(id==='coverageForm'){saveCoverage(match(),e.target);return;}if(id==='substitutionForm'){substitute(String(f.get('out')||''),String(f.get('in')||''));}if(id==='newMatchForm'){prefill={};const opponent=String(f.get('opponent')||'').trim();if(!opponent)return;newMatch({opponent,date:String(f.get('date')),bestOf:f.get('bestOf'),rulesProfile:String(f.get('rulesProfile')||'mhsaa')});}if(id==='teamNameForm'){const name=String(f.get('teamName')||'').trim();if(!name)return;state.teamName=name;persist();render();toast('Team name saved');}if(id==='addPlayerForm'){const number=String(f.get('number')||'').trim(),name=String(f.get('name')||'').trim();if(!number||!name)return;state.players.push({id:uid(),number,name});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast(name+' added');}});
+main.addEventListener('submit',e=>{e.preventDefault();const id=e.target.id;const f=new FormData(e.target);if(id==='backRowForm'){
+ const m=match();if(!m||m.status!=='live')return;
+ const msg=Rules.setBackRowPlan(m,String(f.get('starter')||''),f.getAll('cover').filter(Boolean));
+ if(msg){toast(msg);return;}persist();render();toast('Sub plan saved for this set');return;
+}if(id==='coverageForm'){saveCoverage(match(),e.target);return;}if(id==='substitutionForm'){substitute(String(f.get('out')||''),String(f.get('in')||''));}if(id==='newMatchForm'){prefill={};const opponent=String(f.get('opponent')||'').trim();if(!opponent)return;newMatch({opponent,date:String(f.get('date')),bestOf:f.get('bestOf'),rulesProfile:String(f.get('rulesProfile')||'mhsaa')});}if(id==='teamNameForm'){const name=String(f.get('teamName')||'').trim();if(!name)return;state.teamName=name;persist();render();toast('Team name saved');}if(id==='addPlayerForm'){const number=String(f.get('number')||'').trim(),name=String(f.get('name')||'').trim();if(!number||!name)return;state.players.push({id:uid(),number,name});state.defaultLineup=normalizeSlots(state.defaultLineup,state.players);persist();render();toast(name+' added');}});
 main.addEventListener('change',async e=>{const target=e.target;
 if(target.matches('[data-stat-player-fix]')){
  const m=state.matches.find(x=>x.id===reviewMatchId);if(!m)return;
@@ -1071,6 +1112,10 @@ if(action==='quick-sub-out'){
 }
 if(action==='quick-sub-close'||action==='show-quick-court'){
  quickOut=null;render();const player=main.querySelector('[data-action="quick-sub-out"]:not(:disabled)');if(player)player.focus();return;
+}
+if(action==='planned-sub'){
+ const m=match();if(m&&m.status==='live'&&Rules.plannedChanges(m).some(c=>c.out===b.dataset.out&&c.in===id))substitute(b.dataset.out,id);
+ return;
 }
 if(action==='quick-sub-in'){
  const m=match();if(!m||quickOut?.match!==m.id||quickOut.set!==m.sets.length||quickOut.id!==b.dataset.out)return;
